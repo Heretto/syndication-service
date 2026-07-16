@@ -31,6 +31,8 @@ class SyncConfig(Base):
     adapter_id = Column(String(64), nullable=False)   # e.g. "deploy"
     connector_id = Column(String(64), nullable=False) # e.g. "salesforce"
     deployment_id = Column(String(255), nullable=True)
+    # Soft reference to hop-core's credentials table (no FK — different domain).
+    credential_id = Column(String(36), nullable=True)
     cron_expression = Column(String(128), nullable=False)
     mapping_json = Column(Text, nullable=False, default="{}")
     is_active = Column(Boolean, nullable=False, default=True)

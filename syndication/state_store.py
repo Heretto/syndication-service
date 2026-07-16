@@ -54,6 +54,7 @@ class SyncStateStore:
         deployment_id: str,
         cron_expression: str,
         mapping: dict | None = None,
+        credential_id: str | None = None,
     ) -> SyncConfig:
         db = self._session()
         try:
@@ -65,6 +66,7 @@ class SyncStateStore:
                 deployment_id=deployment_id,
                 cron_expression=cron_expression,
                 mapping_json=json.dumps(mapping or {}),
+                credential_id=credential_id,
             )
             db.add(cfg)
             db.commit()

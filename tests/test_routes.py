@@ -34,6 +34,7 @@ def _make_sync_cfg(**overrides) -> MagicMock:
     cfg.cron_expression = "0 * * * *"
     cfg.is_active = True
     cfg.high_water_mark = None
+    cfg.credential_id = None
     cfg.mapping_json = "{}"
     cfg.created_at = datetime(2026, 7, 1, tzinfo=timezone.utc)
     for k, v in overrides.items():

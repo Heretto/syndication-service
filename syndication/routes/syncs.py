@@ -25,6 +25,7 @@ class CreateSyncRequest(BaseModel):
     deployment_id: str
     cron_expression: str
     mapping: dict[str, Any] = {}
+    credential_id: str | None = None
 
 
 class SyncConfigResponse(BaseModel):
@@ -37,6 +38,7 @@ class SyncConfigResponse(BaseModel):
     cron_expression: str
     is_active: bool
     high_water_mark: str | None
+    credential_id: str | None
     created_at: datetime | None
 
     @classmethod
@@ -51,6 +53,7 @@ class SyncConfigResponse(BaseModel):
             cron_expression=cfg.cron_expression,
             is_active=cfg.is_active,
             high_water_mark=cfg.high_water_mark,
+            credential_id=getattr(cfg, "credential_id", None),
             created_at=getattr(cfg, "created_at", None),
         )
 
@@ -127,6 +130,7 @@ def create_sync(request: Request, body: CreateSyncRequest):
         deployment_id=body.deployment_id,
         cron_expression=body.cron_expression,
         mapping=body.mapping,
+        credential_id=body.credential_id,
     )
     _scheduler(request).add_schedule(cfg)
     return SyncConfigResponse.from_model(cfg)

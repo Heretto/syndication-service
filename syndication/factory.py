@@ -1,0 +1,110 @@
+"""Adapter and connector factory functions.
+
+Factories load credentials from the DB via *session_factory*, decrypt them
+using hop-core's Fernet layer, and construct the correct adapter or connector.
+Keeping factory logic here (rather than in main.py) makes it independently
+testable without importing the full FastAPI application.
+"""
+from __future__ import annotations
+
+from hop_core.core.security import decrypt_credentials
+from hop_core.models.credential import Credential
+from hop_core.models.enums import CredentialTypeRegistry
+
+from syndication.connector.interface import ITargetConnector
+from syndication.connector.noop.connector import NoopConnector
+from syndication.connector.salesforce.connector import SalesforceConnector
+from syndication.source.deploy.adapter import DeployAdapter
+from syndication.source.interface import ISourceAdapter
+from syndication.settings import get_settings
+
+# Register credential types so the hop-core UI/API surfaces them correctly.
+CredentialTypeRegistry.register("deploy", label="Heretto Deploy API")
+CredentialTypeRegistry.register("salesforce", label="Salesforce Knowledge")
+CredentialTypeRegistry.register("servicenow", label="ServiceNow Knowledge")
+CredentialTypeRegistry.register("zendesk", label="Zendesk Guide")
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+def _load_creds(credential_id: str | None, session_factory) -> dict:
+    """Load and decrypt a Credential record from the DB.
+
+    Raises:
+        ValueError: if *credential_id* is None or the record does not exist.
+    """
+    if not credential_id:
+        raise ValueError(
+            "SyncConfig has no credential_id — "
+            "associate a credential before running this sync."
+        )
+    with session_factory() as db:
+        cred = db.get(Credential, credential_id)
+        if cred is None:
+            raise ValueError(
+                f"Credential {credential_id!r} not found. "
+                "It may have been deleted."
+            )
+        return decrypt_credentials(cred.encrypted_data)
+
+
+# ── Public factories ──────────────────────────────────────────────────────────
+
+def build_adapter(cfg, session_factory) -> ISourceAdapter:
+    """Construct a source adapter from *cfg*, loading credentials from the DB.
+
+    Args:
+        cfg:             A ``SyncConfig`` ORM object.
+        session_factory: SQLAlchemy ``sessionmaker`` used to query credentials.
+
+    Raises:
+        ValueError: for unknown ``adapter_id`` or missing/invalid credential.
+    """
+    if cfg.adapter_id == "deploy":
+        creds = _load_creds(cfg.credential_id, session_factory)
+        settings = get_settings()
+        return DeployAdapter(
+            org_id=cfg.org_id,
+            deployment_id=cfg.deployment_id or "",
+            api_key=creds.get("api_key", ""),
+            audience=creds.get("audience", settings.deploy_default_audience),
+        )
+
+    if cfg.adapter_id == "bundle":
+        # Bundle adapter is not yet implemented; credential loading deferred.
+        from syndication.source.bundle.adapter import BundleAdapter
+        return BundleAdapter()
+
+    raise ValueError(
+        f"Unknown adapter_id: {cfg.adapter_id!r}. "
+        f"Supported values: 'deploy', 'bundle'."
+    )
+
+
+def build_connector(cfg, session_factory) -> ITargetConnector:
+    """Construct a target connector from *cfg*, loading credentials from the DB.
+
+    Args:
+        cfg:             A ``SyncConfig`` ORM object.
+        session_factory: SQLAlchemy ``sessionmaker`` used to query credentials.
+
+    Raises:
+        ValueError: for unknown ``connector_id`` or missing/invalid credential.
+    """
+    if cfg.connector_id == "noop":
+        return NoopConnector()
+
+    if cfg.connector_id == "salesforce":
+        creds = _load_creds(cfg.credential_id, session_factory)
+        return SalesforceConnector(
+            instance_url=creds.get("instance_url", ""),
+            api_version=creds.get("api_version", "60.0"),
+            access_token=creds.get("access_token", ""),
+            knowledge_type=creds.get("knowledge_type", "Knowledge__kav"),
+            external_id_field=creds.get("external_id_field", "ExternalId__c"),
+        )
+
+    raise ValueError(
+        f"Unknown connector_id: {cfg.connector_id!r}. "
+        f"Supported values: 'noop', 'salesforce'."
+    )
