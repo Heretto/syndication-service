@@ -120,19 +120,42 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
         <!-- Field mapping -->
         <section class="form-section">
           <h2 class="section-title">Field Mapping</h2>
-          <p class="mapping-hint">Map source IR fields to target knowledge-base fields.</p>
+          <p class="mapping-hint">
+            Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
+          </p>
+
+          <!-- Reference: available Deploy fields -->
+          <div class="deploy-fields-ref">
+            <p class="ref-label">Heretto Deploy fields you can map:</p>
+            <div class="ref-fields">
+              <span class="ref-field"><code>title</code> — Article title</span>
+              <span class="ref-field"><code>short_description</code> — Brief summary or subtitle</span>
+              <span class="ref-field"><code>html_body</code> — Full article body (HTML)</span>
+            </div>
+          </div>
+
+          <!-- Column headers -->
+          <div class="mapping-header" *ngIf="mappingArray.length > 0">
+            <span class="mapping-col-label">Heretto Deploy Field</span>
+            <span class="mapping-arrow-spacer"></span>
+            <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
+            <span class="mapping-remove-spacer"></span>
+          </div>
 
           <div formArrayName="mapping" class="mapping-list">
             <div *ngFor="let row of mappingArray.controls; let i = index"
                  [formGroupName]="i" class="mapping-row">
               <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>Source Field</mat-label>
-                <input matInput formControlName="ir_field" placeholder="e.g. title">
+                <mat-select formControlName="ir_field" placeholder="Select Deploy field">
+                  <mat-option value="title">title — Article title</mat-option>
+                  <mat-option value="short_description">short_description — Summary</mat-option>
+                  <mat-option value="html_body">html_body — Article body (HTML)</mat-option>
+                </mat-select>
               </mat-form-field>
               <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
               <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>Target Field</mat-label>
-                <input matInput formControlName="target_field" placeholder="e.g. Title">
+                <mat-label>{{ connectorFieldLabel }} Field</mat-label>
+                <input matInput formControlName="target_field" [placeholder]="targetFieldPlaceholder">
               </mat-form-field>
               <button mat-icon-button type="button" (click)="removeMappingRow(i)"
                       class="remove-row-btn" aria-label="Remove row">
@@ -205,7 +228,38 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
     }
     .cron-icon { font-size: 14px; width: 14px; height: 14px; color: #5e6e82; }
 
-    .mapping-hint { font-size: 12.5px; color: #5e6e82; margin: 0 0 14px; }
+    .mapping-hint { font-size: 12.5px; color: #5e6e82; margin: 0 0 14px; line-height: 1.5; }
+
+    .deploy-fields-ref {
+      background: #f4f6fa;
+      border: 1px solid #dee2ec;
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+    }
+    .ref-label { font-size: 11.5px; font-weight: 600; color: #3b4563; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .ref-fields { display: flex; flex-direction: column; gap: 4px; }
+    .ref-field { font-size: 12px; color: #5e6e82; }
+    .ref-field code {
+      font-family: 'Roboto Mono', monospace;
+      font-size: 11.5px;
+      background: #e4e8f0;
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: #1d1f2b;
+    }
+
+    .mapping-header {
+      display: grid;
+      grid-template-columns: 1fr 26px 1fr 40px;
+      gap: 8px;
+      margin-bottom: 4px;
+      padding: 0 2px;
+    }
+    .mapping-col-label { font-size: 11px; font-weight: 600; color: #3b4563; text-transform: uppercase; letter-spacing: 0.4px; }
+    .mapping-arrow-spacer { width: 26px; }
+    .mapping-remove-spacer { width: 40px; }
+
     .mapping-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
     .mapping-row {
       display: grid;
@@ -257,6 +311,24 @@ export class SyncFormComponent implements OnInit {
 
   get mappingArray(): FormArray {
     return this.form.get('mapping') as FormArray;
+  }
+
+  get connectorFieldLabel(): string {
+    const labels: Record<string, string> = {
+      salesforce: 'Salesforce Knowledge',
+      servicenow: 'ServiceNow',
+      zendesk: 'Zendesk Guide',
+    };
+    return labels[this.form.get('connector_id')?.value ?? ''] ?? 'Target';
+  }
+
+  get targetFieldPlaceholder(): string {
+    const placeholders: Record<string, string> = {
+      salesforce: 'e.g. Title, Answer__c, Summary__c',
+      servicenow: 'e.g. short_description, text',
+      zendesk: 'e.g. title, body',
+    };
+    return placeholders[this.form.get('connector_id')?.value ?? ''] ?? 'e.g. Title';
   }
 
   constructor(
