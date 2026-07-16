@@ -215,70 +215,61 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
 
         <!-- Field mapping -->
         <section class="form-section">
-          <div class="section-header">
-            <h2 class="section-title" style="margin:0;border:none;padding:0">Field Mapping</h2>
-            <button mat-icon-button type="button" (click)="mappingExpanded = !mappingExpanded"
-                    class="expand-btn" [attr.aria-label]="mappingExpanded ? 'Collapse' : 'Expand'">
-              <mat-icon>{{ mappingExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+          <h2 class="section-title">Field Mapping</h2>
+          <p class="mapping-hint">
+            Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
+          </p>
+
+          <!-- Reference: available Deploy fields (collapsible) -->
+          <div class="deploy-fields-ref">
+            <button type="button" class="ref-toggle" (click)="deployFieldsExpanded = !deployFieldsExpanded">
+              <span class="ref-label">Heretto Deploy fields you can map</span>
+              <mat-icon class="ref-chevron">{{ deployFieldsExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
             </button>
-            <span class="mapping-count" *ngIf="!mappingExpanded">
-              {{ mappingArray.length }} field{{ mappingArray.length === 1 ? '' : 's' }} mapped
-            </span>
+            <div class="ref-fields" *ngIf="deployFieldsExpanded">
+              <span class="ref-field"><code>title</code> — Article title</span>
+              <span class="ref-field"><code>short_description</code> — Brief summary or subtitle</span>
+              <span class="ref-field"><code>html_body</code> — Full article body (HTML)</span>
+              <span class="ref-field"><code>content_type</code> — DITA content type (Concept, Task, Reference)</span>
+              <span class="ref-field"><code>last_modified_iso</code> — Last modified timestamp (ISO 8601)</span>
+            </div>
           </div>
 
-          <div *ngIf="mappingExpanded">
-            <p class="mapping-hint">
-              Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
-            </p>
-
-            <!-- Reference: available Deploy fields -->
-            <div class="deploy-fields-ref">
-              <p class="ref-label">Heretto Deploy fields you can map:</p>
-              <div class="ref-fields">
-                <span class="ref-field"><code>title</code> — Article title</span>
-                <span class="ref-field"><code>short_description</code> — Brief summary or subtitle</span>
-                <span class="ref-field"><code>html_body</code> — Full article body (HTML)</span>
-                <span class="ref-field"><code>content_type</code> — DITA content type (Concept, Task, Reference)</span>
-                <span class="ref-field"><code>last_modified_iso</code> — Last modified timestamp (ISO 8601)</span>
-              </div>
-            </div>
-
-            <!-- Column headers -->
-            <div class="mapping-header" *ngIf="mappingArray.length > 0">
-              <span class="mapping-col-label">Heretto Deploy Field</span>
-              <span class="mapping-arrow-spacer"></span>
-              <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
-              <span class="mapping-remove-spacer"></span>
-            </div>
-
-            <div formArrayName="mapping" class="mapping-list">
-              <div *ngFor="let row of mappingArray.controls; let i = index"
-                   [formGroupName]="i" class="mapping-row">
-                <mat-form-field appearance="outline" class="mapping-field">
-                  <mat-select formControlName="ir_field" placeholder="Select Deploy field">
-                    <mat-option value="title">title — Article title</mat-option>
-                    <mat-option value="short_description">short_description — Summary</mat-option>
-                    <mat-option value="html_body">html_body — Article body (HTML)</mat-option>
-                    <mat-option value="content_type">content_type — DITA content type</mat-option>
-                    <mat-option value="last_modified_iso">last_modified_iso — Last modified</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
-                <mat-form-field appearance="outline" class="mapping-field">
-                  <mat-label>{{ connectorFieldLabel }} Field</mat-label>
-                  <input matInput formControlName="target_field" [placeholder]="targetFieldPlaceholder">
-                </mat-form-field>
-                <button mat-icon-button type="button" (click)="removeMappingRow(i)"
-                        class="remove-row-btn" aria-label="Remove row">
-                  <mat-icon>remove_circle_outline</mat-icon>
-                </button>
-              </div>
-            </div>
-
-            <button mat-stroked-button type="button" (click)="addMappingRow()" class="add-row-btn">
-              <mat-icon>add</mat-icon> Add Field
-            </button>
+          <!-- Column headers -->
+          <div class="mapping-header" *ngIf="mappingArray.length > 0">
+            <span class="mapping-col-label">Heretto Deploy Field</span>
+            <span class="mapping-arrow-spacer"></span>
+            <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
+            <span class="mapping-remove-spacer"></span>
           </div>
+
+          <div formArrayName="mapping" class="mapping-list">
+            <div *ngFor="let row of mappingArray.controls; let i = index"
+                 [formGroupName]="i" class="mapping-row">
+              <mat-form-field appearance="outline" class="mapping-field">
+                <mat-select formControlName="ir_field" placeholder="Select Deploy field">
+                  <mat-option value="title">title — Article title</mat-option>
+                  <mat-option value="short_description">short_description — Summary</mat-option>
+                  <mat-option value="html_body">html_body — Article body (HTML)</mat-option>
+                  <mat-option value="content_type">content_type — DITA content type</mat-option>
+                  <mat-option value="last_modified_iso">last_modified_iso — Last modified</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+              <mat-form-field appearance="outline" class="mapping-field">
+                <mat-label>{{ connectorFieldLabel }} Field</mat-label>
+                <input matInput formControlName="target_field" [placeholder]="targetFieldPlaceholder">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeMappingRow(i)"
+                      class="remove-row-btn" aria-label="Remove row">
+                <mat-icon>remove_circle_outline</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <button mat-stroked-button type="button" (click)="addMappingRow()" class="add-row-btn">
+            <mat-icon>add</mat-icon> Add Field
+          </button>
         </section>
 
         <!-- Actions -->
@@ -324,16 +315,6 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
       padding-bottom: 10px;
       border-bottom: 1px solid #f0f2f7;
     }
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-bottom: 16px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #f0f2f7;
-    }
-    .expand-btn { color: #5e6e82; }
-    .mapping-count { font-size: 12px; color: #5e6e82; flex: 1; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .form-field { width: 100%; }
     .form-field-full { width: 100%; display: block; }
@@ -360,11 +341,24 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
       background: #f4f6fa;
       border: 1px solid #dee2ec;
       border-radius: 4px;
-      padding: 10px 14px;
       margin-bottom: 16px;
+      overflow: hidden;
     }
-    .ref-label { font-size: 11.5px; font-weight: 600; color: #3b4563; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.3px; }
-    .ref-fields { display: flex; flex-direction: column; gap: 4px; }
+    .ref-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      gap: 8px;
+    }
+    .ref-toggle:hover { background: #edf0f6; }
+    .ref-label { font-size: 11.5px; font-weight: 600; color: #3b4563; text-transform: uppercase; letter-spacing: 0.3px; margin: 0; }
+    .ref-chevron { font-size: 16px; width: 16px; height: 16px; color: #5e6e82; flex-shrink: 0; }
+    .ref-fields { display: flex; flex-direction: column; gap: 4px; padding: 0 14px 10px; }
     .ref-field { font-size: 12px; color: #5e6e82; }
     .ref-field code {
       font-family: 'Roboto Mono', monospace;
@@ -438,8 +432,8 @@ export class SyncFormComponent implements OnInit {
   newCredName   = '';
   newCredValues: Record<string, string> = {};
 
-  // Field mapping section
-  mappingExpanded = true;
+  // Deploy fields reference panel
+  deployFieldsExpanded = false;
 
   form = this.fb.group({
     name:            ['', Validators.required],
