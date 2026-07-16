@@ -92,11 +92,13 @@ def _build_lifespan(hop_lifespan):
 
 app = create_hop_app(
     settings_factory=get_settings,
-    extra_routers=[syncs_router],
     title="Syndication Service",
     description="DITA → knowledge-base syndication built on hop-core.",
     version="0.1.0",
 )
+
+# Register syncs routes directly (avoids FastAPI 0.138 _IncludedRouter lazy-eval issue)
+app.include_router(syncs_router, prefix=get_settings().api_prefix)
 
 # Wrap hop-core's lifespan with our scheduler lifecycle
 _hop_lifespan = app.router.lifespan_context

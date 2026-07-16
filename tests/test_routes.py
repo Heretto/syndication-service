@@ -19,7 +19,7 @@ from syndication.routes.syncs import router as syncs_router
 
 def _make_app() -> FastAPI:
     app = FastAPI()
-    app.include_router(syncs_router, prefix="/syncs")
+    app.include_router(syncs_router)
     return app
 
 

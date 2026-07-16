@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
-router = APIRouter(tags=["syncs"])
+router = APIRouter(prefix="/syncs", tags=["syncs"])
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
