@@ -1,7 +1,7 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormArray, FormGroup, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormsModule, FormBuilder, FormArray, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,22 +9,76 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDividerModule } from '@angular/material/divider';
 import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
+import { CredentialService, Credential, CredentialCreate } from '../../core/services/credential.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { CronDisplayComponent } from '../../shared/components/cron-display/cron-display.component';
+import { CronBuilderComponent } from '../../shared/components/cron-builder/cron-builder.component';
+
+// ── Static field definitions ──────────────────────────────────────────────────
+
+interface CredField {
+  key: string;
+  label: string;
+  inputType?: 'text' | 'password';
+  hint?: string;
+  defaultVal?: string;
+}
+
+const CRED_FIELDS: Record<string, CredField[]> = {
+  salesforce: [
+    { key: 'instance_url',       label: 'Instance URL',            hint: 'https://myorg.my.salesforce.com' },
+    { key: 'access_token',       label: 'Access Token',            inputType: 'password' },
+    { key: 'api_version',        label: 'API Version',             defaultVal: '60.0' },
+    { key: 'knowledge_type',     label: 'Knowledge Object API Name', defaultVal: 'Knowledge__kav' },
+    { key: 'external_id_field',  label: 'External ID Field',       defaultVal: 'ExternalId__c' },
+    { key: 'api_key',            label: 'Heretto Deploy API Key',  inputType: 'password' },
+  ],
+  servicenow: [
+    { key: 'instance_url',          label: 'Instance URL',            hint: 'https://mycompany.service-now.com' },
+    { key: 'access_token',          label: 'Access Token',            inputType: 'password' },
+    { key: 'knowledge_base_sys_id', label: 'Knowledge Base Sys ID' },
+    { key: 'kb_category_sys_id',    label: 'Category Sys ID',         hint: 'optional' },
+    { key: 'external_id_field',     label: 'External ID Field',       defaultVal: 'u_external_id' },
+    { key: 'api_key',               label: 'Heretto Deploy API Key',  inputType: 'password' },
+  ],
+  zendesk: [
+    { key: 'subdomain',     label: 'Subdomain',             hint: 'mycompany (not the full URL)' },
+    { key: 'access_token',  label: 'Access Token',          inputType: 'password' },
+    { key: 'section_id',    label: 'Section ID',            hint: 'Help Center section to publish into' },
+    { key: 'locale',        label: 'Locale',                defaultVal: 'en-us' },
+    { key: 'api_key',       label: 'Heretto Deploy API Key', inputType: 'password' },
+  ],
+};
 
 const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
-  salesforce: { title: 'Title', html_body: 'Body' },
+  salesforce: { title: 'Title', short_description: 'Summary__c', html_body: 'Answer__c' },
   servicenow: { title: 'short_description', html_body: 'text' },
-  zendesk: { title: 'title', html_body: 'body' },
+  zendesk:    { title: 'title', html_body: 'body' },
 };
+
+const CONNECTOR_LABELS: Record<string, string> = {
+  salesforce: 'Salesforce Knowledge',
+  servicenow: 'ServiceNow',
+  zendesk:    'Zendesk Guide',
+  noop:       'No-op',
+};
+
+const TARGET_PLACEHOLDERS: Record<string, string> = {
+  salesforce: 'e.g. Title, Answer__c, Summary__c',
+  servicenow: 'e.g. short_description, text',
+  zendesk:    'e.g. title, body',
+};
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 @Component({
   selector: 'app-sync-form',
   imports: [
-    CommonModule, ReactiveFormsModule, RouterModule, MatButtonModule, MatIconModule,
-    MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule,
-    CronDisplayComponent,
+    CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
+    MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
+    MatSelectModule, MatProgressSpinnerModule, MatDividerModule,
+    CronBuilderComponent,
   ],
   template: `
     <!-- Page banner -->
@@ -67,9 +121,7 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
                 <mat-option value="deploy">Heretto Deploy</mat-option>
                 <mat-option value="bundle">Bundle (DITA archive)</mat-option>
               </mat-select>
-              <mat-error *ngIf="form.get('adapter_id')?.hasError('required')">Required</mat-error>
             </mat-form-field>
-
             <mat-form-field appearance="outline" class="form-field">
               <mat-label>Target Connector</mat-label>
               <mat-select formControlName="connector_id">
@@ -78,95 +130,155 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
                 <mat-option value="zendesk">Zendesk Guide</mat-option>
                 <mat-option value="noop">No-op (dry run)</mat-option>
               </mat-select>
-              <mat-error *ngIf="form.get('connector_id')?.hasError('required')">Required</mat-error>
             </mat-form-field>
           </div>
         </section>
 
-        <!-- Connection details -->
+        <!-- Source connection: Heretto Deploy -->
         <section class="form-section">
-          <h2 class="section-title">Connection Details</h2>
-          <div class="form-row">
-            <mat-form-field appearance="outline" class="form-field">
-              <mat-label>Deployment ID</mat-label>
-              <input matInput formControlName="deployment_id" placeholder="deploy-uuid (optional)">
+          <h2 class="section-title">Source — Heretto Deploy</h2>
+          <mat-form-field appearance="outline" class="form-field-full">
+            <mat-label>Deployment ID</mat-label>
+            <input matInput formControlName="deployment_id" placeholder="deployment-uuid">
+            <mat-hint>The UUID of the Heretto Deploy deployment to sync content from.</mat-hint>
+          </mat-form-field>
+        </section>
+
+        <!-- Target connection: connector credential -->
+        <section class="form-section" *ngIf="form.get('connector_id')?.value !== 'noop'">
+          <h2 class="section-title">Target Connection — {{ connectorLabel }}</h2>
+
+          <!-- Existing credential picker -->
+          <div *ngIf="credsLoading" class="creds-loading">
+            <mat-spinner diameter="16"></mat-spinner>
+            <span>Loading credentials…</span>
+          </div>
+
+          <mat-form-field appearance="outline" class="form-field-full" *ngIf="!credsLoading">
+            <mat-label>Credential</mat-label>
+            <mat-select formControlName="credential_id">
+              <mat-option [value]="null">— None selected —</mat-option>
+              <mat-option *ngFor="let c of credentials" [value]="c.id">{{ c.name }}</mat-option>
+            </mat-select>
+            <mat-hint>Stored credentials for {{ connectorLabel }}. Secrets are encrypted at rest.</mat-hint>
+          </mat-form-field>
+
+          <!-- Create new credential toggle -->
+          <div class="new-cred-toggle">
+            <button mat-stroked-button type="button" (click)="showNewCred = !showNewCred" class="new-cred-btn">
+              <mat-icon>{{ showNewCred ? 'expand_less' : 'add' }}</mat-icon>
+              {{ showNewCred ? 'Cancel' : 'Create new credential' }}
+            </button>
+          </div>
+
+          <!-- Inline create-new credential form -->
+          <div *ngIf="showNewCred" class="new-cred-form">
+            <mat-divider class="cred-divider"></mat-divider>
+            <p class="cred-form-title">New {{ connectorLabel }} credential</p>
+
+            <mat-form-field appearance="outline" class="form-field-full">
+              <mat-label>Credential Name</mat-label>
+              <input matInput [(ngModel)]="newCredName" [ngModelOptions]="{standalone: true}"
+                     placeholder="e.g. Production Salesforce">
             </mat-form-field>
 
-            <mat-form-field appearance="outline" class="form-field">
-              <mat-label>Credential ID</mat-label>
-              <input matInput formControlName="credential_id" placeholder="credential-uuid (from Credentials)">
-            </mat-form-field>
+            <div class="cred-fields-grid">
+              <mat-form-field appearance="outline" *ngFor="let f of credentialFields" class="cred-field">
+                <mat-label>{{ f.label }}</mat-label>
+                <input matInput
+                       [type]="f.inputType || 'text'"
+                       [(ngModel)]="newCredValues[f.key]"
+                       [ngModelOptions]="{standalone: true}"
+                       [placeholder]="f.hint || f.defaultVal || ''">
+                <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
+              </mat-form-field>
+            </div>
+
+            <div class="cred-actions">
+              <button mat-flat-button type="button" (click)="saveNewCredential()" [disabled]="savingCred" class="save-cred-btn">
+                <mat-spinner *ngIf="savingCred" diameter="14" class="btn-spinner"></mat-spinner>
+                Save Credential
+              </button>
+            </div>
           </div>
-          <mat-hint style="font-size:12px;color:#5e6e82;display:block;margin-top:-8px">
-            Credential is looked up from the platform — no secrets stored here.
-          </mat-hint>
         </section>
 
         <!-- Schedule -->
         <section class="form-section">
           <h2 class="section-title">Schedule</h2>
-          <mat-form-field appearance="outline" class="form-field-full">
-            <mat-label>Cron Expression</mat-label>
-            <input matInput formControlName="cron_expression" placeholder="0 * * * * (hourly)">
-            <mat-hint>Standard 5-field cron syntax: minute hour day-of-month month day-of-week</mat-hint>
-            <mat-error *ngIf="form.get('cron_expression')?.hasError('required')">Required</mat-error>
-          </mat-form-field>
-          <div *ngIf="form.get('cron_expression')?.value" class="cron-preview">
-            <mat-icon class="cron-icon">schedule</mat-icon>
-            <app-cron-display [expression]="form.get('cron_expression')?.value ?? ''"></app-cron-display>
-          </div>
+          <app-cron-builder formControlName="cron_expression"></app-cron-builder>
+          <mat-error *ngIf="form.get('cron_expression')?.hasError('required') && form.get('cron_expression')?.touched"
+                     style="font-size:12px;margin-top:4px">
+            Schedule is required
+          </mat-error>
         </section>
 
         <!-- Field mapping -->
         <section class="form-section">
-          <h2 class="section-title">Field Mapping</h2>
-          <p class="mapping-hint">
-            Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
-          </p>
+          <div class="section-header">
+            <h2 class="section-title" style="margin:0;border:none;padding:0">Field Mapping</h2>
+            <button mat-icon-button type="button" (click)="mappingExpanded = !mappingExpanded"
+                    class="expand-btn" [attr.aria-label]="mappingExpanded ? 'Collapse' : 'Expand'">
+              <mat-icon>{{ mappingExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+            <span class="mapping-count" *ngIf="!mappingExpanded">
+              {{ mappingArray.length }} field{{ mappingArray.length === 1 ? '' : 's' }} mapped
+            </span>
+          </div>
 
-          <!-- Reference: available Deploy fields -->
-          <div class="deploy-fields-ref">
-            <p class="ref-label">Heretto Deploy fields you can map:</p>
-            <div class="ref-fields">
-              <span class="ref-field"><code>title</code> — Article title</span>
-              <span class="ref-field"><code>short_description</code> — Brief summary or subtitle</span>
-              <span class="ref-field"><code>html_body</code> — Full article body (HTML)</span>
+          <div *ngIf="mappingExpanded">
+            <p class="mapping-hint">
+              Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
+            </p>
+
+            <!-- Reference: available Deploy fields -->
+            <div class="deploy-fields-ref">
+              <p class="ref-label">Heretto Deploy fields you can map:</p>
+              <div class="ref-fields">
+                <span class="ref-field"><code>title</code> — Article title</span>
+                <span class="ref-field"><code>short_description</code> — Brief summary or subtitle</span>
+                <span class="ref-field"><code>html_body</code> — Full article body (HTML)</span>
+                <span class="ref-field"><code>content_type</code> — DITA content type (Concept, Task, Reference)</span>
+                <span class="ref-field"><code>last_modified_iso</code> — Last modified timestamp (ISO 8601)</span>
+              </div>
             </div>
-          </div>
 
-          <!-- Column headers -->
-          <div class="mapping-header" *ngIf="mappingArray.length > 0">
-            <span class="mapping-col-label">Heretto Deploy Field</span>
-            <span class="mapping-arrow-spacer"></span>
-            <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
-            <span class="mapping-remove-spacer"></span>
-          </div>
-
-          <div formArrayName="mapping" class="mapping-list">
-            <div *ngFor="let row of mappingArray.controls; let i = index"
-                 [formGroupName]="i" class="mapping-row">
-              <mat-form-field appearance="outline" class="mapping-field">
-                <mat-select formControlName="ir_field" placeholder="Select Deploy field">
-                  <mat-option value="title">title — Article title</mat-option>
-                  <mat-option value="short_description">short_description — Summary</mat-option>
-                  <mat-option value="html_body">html_body — Article body (HTML)</mat-option>
-                </mat-select>
-              </mat-form-field>
-              <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
-              <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>{{ connectorFieldLabel }} Field</mat-label>
-                <input matInput formControlName="target_field" [placeholder]="targetFieldPlaceholder">
-              </mat-form-field>
-              <button mat-icon-button type="button" (click)="removeMappingRow(i)"
-                      class="remove-row-btn" aria-label="Remove row">
-                <mat-icon>remove_circle_outline</mat-icon>
-              </button>
+            <!-- Column headers -->
+            <div class="mapping-header" *ngIf="mappingArray.length > 0">
+              <span class="mapping-col-label">Heretto Deploy Field</span>
+              <span class="mapping-arrow-spacer"></span>
+              <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
+              <span class="mapping-remove-spacer"></span>
             </div>
-          </div>
 
-          <button mat-stroked-button type="button" (click)="addMappingRow()" class="add-row-btn">
-            <mat-icon>add</mat-icon> Add Field
-          </button>
+            <div formArrayName="mapping" class="mapping-list">
+              <div *ngFor="let row of mappingArray.controls; let i = index"
+                   [formGroupName]="i" class="mapping-row">
+                <mat-form-field appearance="outline" class="mapping-field">
+                  <mat-select formControlName="ir_field" placeholder="Select Deploy field">
+                    <mat-option value="title">title — Article title</mat-option>
+                    <mat-option value="short_description">short_description — Summary</mat-option>
+                    <mat-option value="html_body">html_body — Article body (HTML)</mat-option>
+                    <mat-option value="content_type">content_type — DITA content type</mat-option>
+                    <mat-option value="last_modified_iso">last_modified_iso — Last modified</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+                <mat-form-field appearance="outline" class="mapping-field">
+                  <mat-label>{{ connectorFieldLabel }} Field</mat-label>
+                  <input matInput formControlName="target_field" [placeholder]="targetFieldPlaceholder">
+                </mat-form-field>
+                <button mat-icon-button type="button" (click)="removeMappingRow(i)"
+                        class="remove-row-btn" aria-label="Remove row">
+                  <mat-icon>remove_circle_outline</mat-icon>
+                </button>
+              </div>
+            </div>
+
+            <button mat-stroked-button type="button" (click)="addMappingRow()" class="add-row-btn">
+              <mat-icon>add</mat-icon> Add Field
+            </button>
+          </div>
         </section>
 
         <!-- Actions -->
@@ -212,22 +324,36 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
       padding-bottom: 10px;
       border-bottom: 1px solid #f0f2f7;
     }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #f0f2f7;
+    }
+    .expand-btn { color: #5e6e82; }
+    .mapping-count { font-size: 12px; color: #5e6e82; flex: 1; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .form-field { width: 100%; }
     .form-field-full { width: 100%; display: block; }
 
-    .cron-preview {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 8px;
-      padding: 8px 12px;
-      background: #f8f9fb;
-      border-radius: 4px;
-      border: 1px solid #dee2ec;
+    /* Credentials */
+    .creds-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5e6e82; margin-bottom: 12px; }
+    .new-cred-toggle { margin-top: 8px; }
+    .new-cred-btn { border-color: #dee2ec; color: #5e6e82; font-size: 12.5px; }
+    .new-cred-form { margin-top: 12px; }
+    .cred-divider { margin-bottom: 16px; }
+    .cred-form-title { font-size: 12.5px; font-weight: 600; color: #3b4563; margin: 0 0 14px; }
+    .cred-fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+    .cred-field { width: 100%; }
+    .cred-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
+    .save-cred-btn {
+      background: #011627 !important; color: #fff !important;
+      font-size: 13px; display: flex; align-items: center; gap: 6px;
     }
-    .cron-icon { font-size: 14px; width: 14px; height: 14px; color: #5e6e82; }
 
+    /* Field mapping */
     .mapping-hint { font-size: 12.5px; color: #5e6e82; margin: 0 0 14px; line-height: 1.5; }
 
     .deploy-fields-ref {
@@ -272,6 +398,7 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
     .remove-row-btn { color: #de350b !important; flex-shrink: 0; }
     .add-row-btn { border-color: #dee2ec; color: #5e6e82; font-size: 12.5px; }
 
+    /* Actions */
     .form-actions {
       display: flex;
       justify-content: flex-end;
@@ -291,21 +418,36 @@ const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
   `],
 })
 export class SyncFormComponent implements OnInit {
-  private destroyRef = inject(DestroyRef);
-  private route = inject(ActivatedRoute);
-  private fb = inject(FormBuilder);
+  private destroyRef  = inject(DestroyRef);
+  private route       = inject(ActivatedRoute);
+  private fb          = inject(FormBuilder);
+  private syncService = inject(SyncService);
+  private credService = inject(CredentialService);
+  private notifications = inject(NotificationService);
+  private router      = inject(Router);
 
-  isEdit = false;
-  saving = false;
+  isEdit   = false;
+  saving   = false;
   private editId: string | null = null;
+
+  // Credential state
+  credentials:  Credential[] = [];
+  credsLoading  = false;
+  showNewCred   = false;
+  savingCred    = false;
+  newCredName   = '';
+  newCredValues: Record<string, string> = {};
+
+  // Field mapping section
+  mappingExpanded = true;
 
   form = this.fb.group({
     name:            ['', Validators.required],
     adapter_id:      ['deploy', Validators.required],
     connector_id:    ['salesforce', Validators.required],
     deployment_id:   [''],
-    credential_id:   [''],
-    cron_expression: ['0 * * * *', Validators.required],
+    credential_id:   [null as string | null],
+    cron_expression: ['0 9 * * *', Validators.required],
     mapping:         this.fb.array<FormGroup>([]),
   });
 
@@ -313,29 +455,21 @@ export class SyncFormComponent implements OnInit {
     return this.form.get('mapping') as FormArray;
   }
 
+  get connectorLabel(): string {
+    return CONNECTOR_LABELS[this.form.get('connector_id')?.value ?? ''] ?? 'Target';
+  }
+
   get connectorFieldLabel(): string {
-    const labels: Record<string, string> = {
-      salesforce: 'Salesforce Knowledge',
-      servicenow: 'ServiceNow',
-      zendesk: 'Zendesk Guide',
-    };
-    return labels[this.form.get('connector_id')?.value ?? ''] ?? 'Target';
+    return CONNECTOR_LABELS[this.form.get('connector_id')?.value ?? ''] ?? 'Target';
   }
 
   get targetFieldPlaceholder(): string {
-    const placeholders: Record<string, string> = {
-      salesforce: 'e.g. Title, Answer__c, Summary__c',
-      servicenow: 'e.g. short_description, text',
-      zendesk: 'e.g. title, body',
-    };
-    return placeholders[this.form.get('connector_id')?.value ?? ''] ?? 'e.g. Title';
+    return TARGET_PLACEHOLDERS[this.form.get('connector_id')?.value ?? ''] ?? 'e.g. Title';
   }
 
-  constructor(
-    private syncService: SyncService,
-    private notifications: NotificationService,
-    private router: Router,
-  ) {}
+  get credentialFields(): CredField[] {
+    return CRED_FIELDS[this.form.get('connector_id')?.value ?? ''] ?? [];
+  }
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id');
@@ -350,24 +484,91 @@ export class SyncFormComponent implements OnInit {
             adapter_id:      sync.adapter_id,
             connector_id:    sync.connector_id,
             deployment_id:   sync.deployment_id ?? '',
-            credential_id:   sync.credential_id ?? '',
+            credential_id:   sync.credential_id ?? null,
             cron_expression: sync.cron_expression,
           });
-          // Populate mapping from existing sync
           this.mappingArray.clear();
           for (const [irField, targetField] of Object.entries(sync.mapping || {})) {
             this.mappingArray.push(this._createMappingRow(irField, targetField));
           }
+          this._loadCredentials(sync.connector_id);
+          this._resetNewCredForm(sync.connector_id);
         });
     } else {
-      // Pre-populate mapping defaults for the initially selected connector
-      this._applyDefaultMapping(this.form.get('connector_id')!.value);
+      const initialConnector = this.form.get('connector_id')!.value;
+      this._applyDefaultMapping(initialConnector);
+      this._loadCredentials(initialConnector);
+      this._resetNewCredForm(initialConnector);
 
-      // Update defaults when connector changes (create mode only)
+      // Reload credentials and reset defaults when connector changes
       this.form.get('connector_id')!.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(connectorId => this._applyDefaultMapping(connectorId));
+        .subscribe(connectorId => {
+          this._applyDefaultMapping(connectorId);
+          this._loadCredentials(connectorId);
+          this.form.get('credential_id')!.setValue(null);
+          this.showNewCred = false;
+          this._resetNewCredForm(connectorId);
+        });
+
+      // Auto-populate mapping when a deployment is first connected
+      this.form.get('deployment_id')!.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(depId => {
+          if (depId && this.mappingArray.length === 0) {
+            this._applyDefaultMapping(this.form.get('connector_id')!.value);
+          }
+        });
     }
+  }
+
+  private _loadCredentials(connectorId: string | null) {
+    if (!connectorId || connectorId === 'noop') {
+      this.credentials = [];
+      return;
+    }
+    this.credsLoading = true;
+    this.credService.list(connectorId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next:  creds => { this.credentials = creds; this.credsLoading = false; },
+        error: ()    => { this.credsLoading = false; },
+      });
+  }
+
+  private _resetNewCredForm(connectorId: string | null) {
+    this.newCredName   = '';
+    this.newCredValues = {};
+    for (const f of CRED_FIELDS[connectorId ?? ''] ?? []) {
+      this.newCredValues[f.key] = f.defaultVal ?? '';
+    }
+  }
+
+  saveNewCredential() {
+    if (!this.newCredName.trim()) {
+      this.notifications.error('Credential name is required.');
+      return;
+    }
+    const connectorId = this.form.get('connector_id')!.value ?? '';
+    const credData: CredentialCreate = {
+      type:        connectorId,
+      name:        this.newCredName.trim(),
+      credentials: { ...this.newCredValues },
+    };
+    this.savingCred = true;
+    this.credService.create(credData)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: cred => {
+          this.credentials = [...this.credentials, cred];
+          this.form.get('credential_id')!.setValue(cred.id);
+          this.showNewCred = false;
+          this.savingCred  = false;
+          this._resetNewCredForm(connectorId);
+          this.notifications.success(`Credential "${cred.name}" saved.`);
+        },
+        error: () => { this.savingCred = false; },
+      });
   }
 
   private _createMappingRow(irField = '', targetField = ''): FormGroup {
@@ -403,7 +604,7 @@ export class SyncFormComponent implements OnInit {
   onSubmit() {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.saving = true;
-    const raw = this.form.getRawValue();
+    const raw     = this.form.getRawValue();
     const mapping = this._buildMappingDict();
 
     if (this.isEdit && this.editId) {
