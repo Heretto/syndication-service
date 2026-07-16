@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+*.env
+
+# Test / coverage artefacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# SQLite dev databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Alembic ephemeral artefacts (keep versions/)
+# (nothing to exclude here beyond .db files above)
+
+# macOS
+.DS_Store

@@ -1,0 +1,10 @@
+hop-core @ file:///Users/Jarod/_heretto/hop-core
+apscheduler>=3.10.4
+httpx>=0.27.0
+uvicorn[standard]>=0.29.0
+lxml>=5.2.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+alembic>=1.13.0
+slowapi>=0.1.9
+pyyaml>=6.0
