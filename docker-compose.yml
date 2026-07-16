@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: ../
+      dockerfile: syndication-service/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/syndication.db
+      - FERNET_KEY=${FERNET_KEY:-}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - DEPLOY_DEFAULT_AUDIENCE=${DEPLOY_DEFAULT_AUDIENCE:-https://api.heretto.com}
+    volumes:
+      - db-data:/app/data
+
+  frontend:
+    build:
+      context: ../
+      dockerfile: syndication-service/frontend/Dockerfile
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
+
+volumes:
+  db-data:

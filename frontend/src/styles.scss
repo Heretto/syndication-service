@@ -1,0 +1,11 @@
+@use '../../../hop-core/ui/src/lib/theme/index' as hop;
+
+@include hop.hop-core-theme();
+
+// Restore sane anchor button behaviour (hop-core theme's a:hover overrides Material).
+a.mat-mdc-button-base:hover {
+  text-decoration: none;
+}
+a.mat-mdc-button-base:hover .mdc-button__label {
+  text-decoration: underline;
+}

@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+*.pyo
+.git
+.env
+*.db
+syndication_service.egg-info
+frontend/node_modules
+frontend/dist
+.pytest_cache
