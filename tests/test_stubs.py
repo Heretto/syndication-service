@@ -1,8 +1,11 @@
-"""Tests for stub connectors (Zendesk, ServiceNow) — TDD step 12.
+"""Tests for stub connectors (Zendesk) — TDD step 12.
 
 Stubs are placeholder implementations that raise NotImplementedError for
 every non-trivial operation.  Tests verify the ABC contract is met and that
 stub methods raise clearly rather than silently returning wrong data.
+
+ServiceNow was promoted from stub to full implementation in step 15 and is
+covered by test_servicenow_connector.py.
 """
 from __future__ import annotations
 
@@ -10,7 +13,6 @@ import pytest
 
 from syndication.connector.interface import ITargetConnector
 from syndication.connector.zendesk.connector import ZendeskConnector
-from syndication.connector.servicenow.connector import ServiceNowConnector
 from syndication.ir.types import IRPage
 
 
@@ -32,7 +34,6 @@ def _make_ir_page() -> IRPage:
 
 @pytest.mark.parametrize("ConnectorClass,expected_id", [
     (ZendeskConnector, "zendesk"),
-    (ServiceNowConnector, "servicenow"),
 ])
 class TestStubConnectors:
     def test_is_itarget_connector(self, ConnectorClass, expected_id):

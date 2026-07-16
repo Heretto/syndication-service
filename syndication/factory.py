@@ -14,6 +14,7 @@ from hop_core.models.enums import CredentialTypeRegistry
 from syndication.connector.interface import ITargetConnector
 from syndication.connector.noop.connector import NoopConnector
 from syndication.connector.salesforce.connector import SalesforceConnector
+from syndication.connector.servicenow.connector import ServiceNowConnector
 from syndication.source.deploy.adapter import DeployAdapter
 from syndication.source.interface import ISourceAdapter
 from syndication.settings import get_settings
@@ -104,7 +105,17 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
             external_id_field=creds.get("external_id_field", "ExternalId__c"),
         )
 
+    if cfg.connector_id == "servicenow":
+        creds = _load_creds(cfg.credential_id, session_factory)
+        return ServiceNowConnector(
+            instance_url=creds.get("instance_url", ""),
+            access_token=creds.get("access_token", ""),
+            knowledge_base_sys_id=creds.get("knowledge_base_sys_id", ""),
+            kb_category_sys_id=creds.get("kb_category_sys_id", ""),
+            external_id_field=creds.get("external_id_field", "u_external_id"),
+        )
+
     raise ValueError(
         f"Unknown connector_id: {cfg.connector_id!r}. "
-        f"Supported values: 'noop', 'salesforce'."
+        f"Supported values: 'noop', 'salesforce', 'servicenow'."
     )
