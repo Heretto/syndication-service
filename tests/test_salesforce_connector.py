@@ -357,6 +357,9 @@ class TestRewriteLinks:
 # ── deferred_link_fixup ───────────────────────────────────────────────────────
 
 class TestDeferredLinkFixup:
+    def _article_url(self, article_id: str) -> str:
+        return f"{BASE}/sobjects/{KAV_TYPE}/{article_id}"
+
     async def test_returns_zero_with_empty_link_map(self):
         conn = _conn()
         n = await conn.deferred_link_fixup("run-1", {})
@@ -364,7 +367,39 @@ class TestDeferredLinkFixup:
 
     async def test_returns_non_negative_int(self):
         conn = _conn()
-        link_map = {"uuid-a": "target-a"}
-        n = await conn.deferred_link_fixup("run-1", link_map)
+        link_map = {"uuid-a": "art-001"}
+        with respx.mock() as mock:
+            mock.get(self._article_url("art-001")).mock(
+                return_value=httpx.Response(200, json={"Body": ""})
+            )
+            n = await conn.deferred_link_fixup("run-1", link_map)
         assert isinstance(n, int)
+        assert n >= 0
+
+    async def test_modified_article_increments_count(self):
+        conn = _conn()
+        link_map = {"uuid-a": "art-002"}
+        with respx.mock() as mock:
+            mock.get(self._article_url("art-002")).mock(
+                return_value=httpx.Response(200, json={"Body": '<a href="uuid-a">link</a>'})
+            )
+            mock.patch(self._article_url("art-002")).mock(
+                return_value=httpx.Response(204)
+            )
+            n = await conn.deferred_link_fixup("run-1", link_map)
+        assert n == 1
+
+    async def test_unchanged_article_not_patched(self):
+        conn = _conn()
+        link_map = {"uuid-b": "art-003"}
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(self._article_url("art-003")).mock(
+                return_value=httpx.Response(200, json={"Body": "<p>No links</p>"})
+            )
+            patch_route = mock.patch(self._article_url("art-003")).mock(
+                return_value=httpx.Response(204)
+            )
+            n = await conn.deferred_link_fixup("run-1", link_map)
+        assert n == 0
+        assert not patch_route.called
         assert n >= 0

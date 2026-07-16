@@ -256,9 +256,35 @@ export class SyncDetailComponent implements OnInit {
 
   triggerNow() {
     if (!this.sync) return;
-    this.syncService.trigger(this.sync.id)
+    const syncId = this.sync.id;
+    this.syncService.trigger(syncId)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: () => this.notifications.success('Sync triggered') });
+      .subscribe({
+        next: () => {
+          this.notifications.success('Sync triggered');
+          this._startRunPolling(syncId);
+        },
+      });
+  }
+
+  private _startRunPolling(syncId: string, remaining = 15): void {
+    if (remaining <= 0) return;
+    this.runsLoading = true;
+    setTimeout(() => {
+      this.syncService.getRuns(syncId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: runs => {
+            this.runs = runs;
+            this.runsLoading = false;
+            const hasRunning = runs.some(r => r.status === 'running');
+            if (hasRunning) {
+              this._startRunPolling(syncId, remaining - 1);
+            }
+          },
+          error: () => { this.runsLoading = false; },
+        });
+    }, 2000);
   }
 
   deactivate() {

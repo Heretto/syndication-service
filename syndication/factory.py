@@ -15,6 +15,7 @@ from syndication.connector.interface import ITargetConnector
 from syndication.connector.noop.connector import NoopConnector
 from syndication.connector.salesforce.connector import SalesforceConnector
 from syndication.connector.servicenow.connector import ServiceNowConnector
+from syndication.connector.zendesk.connector import ZendeskConnector
 from syndication.source.deploy.adapter import DeployAdapter
 from syndication.source.interface import ISourceAdapter
 from syndication.settings import get_settings
@@ -115,7 +116,16 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
             external_id_field=creds.get("external_id_field", "u_external_id"),
         )
 
+    if cfg.connector_id == "zendesk":
+        creds = _load_creds(cfg.credential_id, session_factory)
+        return ZendeskConnector(
+            subdomain=creds.get("subdomain", ""),
+            access_token=creds.get("access_token", ""),
+            section_id=creds.get("section_id", ""),
+            locale=creds.get("locale", "en-us"),
+        )
+
     raise ValueError(
         f"Unknown connector_id: {cfg.connector_id!r}. "
-        f"Supported values: 'noop', 'salesforce', 'servicenow'."
+        f"Supported values: 'noop', 'salesforce', 'servicenow', 'zendesk'."
     )

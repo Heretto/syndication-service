@@ -173,6 +173,10 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
                       matTooltip="Run now">
                 <mat-icon>play_arrow</mat-icon>
               </button>
+              <a mat-icon-button class="action-btn" [routerLink]="[s.id, 'edit']"
+                 matTooltip="Edit">
+                <mat-icon>edit</mat-icon>
+              </a>
               <button mat-icon-button class="action-btn action-btn-danger" (click)="deleteSync(s)"
                       matTooltip="Deactivate">
                 <mat-icon>delete</mat-icon>

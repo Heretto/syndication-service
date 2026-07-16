@@ -204,6 +204,42 @@ class ServiceNowConnector(ITargetConnector):
         run_id: str,
         link_map: dict[str, str],
     ) -> int:
-        """Post-batch link rewrite pass.  Not yet implemented; returns 0."""
-        # TODO: query state store for articles loaded in run_id, re-upsert each
-        return 0
+        """Post-batch link rewrite pass.
+
+        For each source_uuid → sys_id pair in *link_map*:
+        1. Fetch the current article HTML from ServiceNow.
+        2. Rewrite any inter-article links using the full URL map.
+        3. PATCH the article if the HTML changed.
+
+        Returns the number of articles actually modified.
+        """
+        if not link_map:
+            return 0
+
+        base = self._base_url()
+        table_url = f"{base}/table/kb_knowledge"
+
+        # Build url_map: source_uuid → full ServiceNow article URL
+        url_map = {
+            source_uuid: f"{self._instance_url}/kb_view.do?sysparm_sys_id={sys_id}"
+            for source_uuid, sys_id in link_map.items()
+        }
+
+        count = 0
+        for source_uuid, sys_id in link_map.items():
+            resp = await self._request(
+                "GET",
+                f"{table_url}/{sys_id}",
+                params={"sysparm_fields": "text"},
+            )
+            current = resp.json().get("result", {}).get("text", "") or ""
+            rewritten = await self.rewrite_links(current, url_map)
+            if rewritten != current:
+                await self._request(
+                    "PATCH",
+                    f"{table_url}/{sys_id}",
+                    json={"text": rewritten},
+                )
+                count += 1
+
+        return count

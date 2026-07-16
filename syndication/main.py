@@ -69,6 +69,12 @@ app = create_hop_app(
     version="0.1.0",
 )
 
+# Health check — available without auth, outside the api_prefix
+@app.get("/health", tags=["health"])
+def health():
+    return {"status": "ok"}
+
+
 # Register syncs routes directly (avoids FastAPI 0.138 _IncludedRouter lazy-eval issue)
 app.include_router(syncs_router, prefix=get_settings().api_prefix)
 

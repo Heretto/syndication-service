@@ -1,25 +1,40 @@
-"""Tests for the API routes (TDD step 9).
+"""Tests for the API routes.
 
 Uses FastAPI TestClient with all services mocked so no DB or network required.
+Auth dependency is overridden with a mock context so tests don't need a real JWT.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+import uuid
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from hop_core.api.dependencies import CurrentUserContext, get_current_active_user_with_org
 from syndication.routes.syncs import router as syncs_router
+
+# Consistent org UUID used across all fixtures
+ORG_UUID = uuid.UUID("00000000-0000-0000-0000-000000000abc")
+ORG_ID = str(ORG_UUID)
 
 
 # ── Minimal test app ──────────────────────────────────────────────────────────
-# We mount only the routes under test; no hop-core auth middleware required.
 
-def _make_app() -> FastAPI:
+def _make_mock_context() -> CurrentUserContext:
+    ctx = MagicMock(spec=CurrentUserContext)
+    ctx.organization_id = ORG_UUID
+    return ctx
+
+
+def _make_app(auth: bool = True) -> FastAPI:
     app = FastAPI()
     app.include_router(syncs_router)
+    if auth:
+        # Override auth so tests don't need a real JWT
+        app.dependency_overrides[get_current_active_user_with_org] = _make_mock_context
     return app
 
 
@@ -29,12 +44,13 @@ def _make_sync_cfg(**overrides) -> MagicMock:
     cfg.name = "My Sync"
     cfg.adapter_id = "deploy"
     cfg.connector_id = "salesforce"
-    cfg.org_id = "org-abc"
+    cfg.org_id = ORG_ID
     cfg.deployment_id = "dep-001"
     cfg.cron_expression = "0 * * * *"
     cfg.is_active = True
     cfg.high_water_mark = None
     cfg.credential_id = None
+    cfg.mapping = {}
     cfg.mapping_json = "{}"
     cfg.created_at = datetime(2026, 7, 1, tzinfo=timezone.utc)
     for k, v in overrides.items():
@@ -64,6 +80,7 @@ def mock_store():
     store.list_active_syncs = MagicMock(return_value=[_make_sync_cfg()])
     store.get_sync = MagicMock(return_value=_make_sync_cfg())
     store.create_sync = MagicMock(return_value=_make_sync_cfg())
+    store.update_sync = MagicMock(return_value=_make_sync_cfg())
     store.deactivate_sync = MagicMock()
     store.list_runs = MagicMock(return_value=[_make_run()])
     return store
@@ -88,12 +105,29 @@ def mock_executor():
 
 @pytest.fixture
 def client(mock_store, mock_scheduler, mock_executor) -> TestClient:
-    app = _make_app()
-    # Inject dependencies via app.state (routes access via request.app.state)
+    app = _make_app(auth=True)
     app.state.store = mock_store
     app.state.scheduler = mock_scheduler
     app.state.executor = mock_executor
     return TestClient(app)
+
+
+# ── Auth: unauthenticated requests should be rejected ─────────────────────────
+
+class TestAuth:
+    def test_unauthenticated_list_returns_401(self, mock_store, mock_scheduler, mock_executor):
+        from hop_core.db import get_db
+
+        app = _make_app(auth=False)
+        # Override get_db so hop-core's dependency chain doesn't 500 before
+        # the missing-token 401 is raised.
+        app.dependency_overrides[get_db] = lambda: MagicMock()
+        app.state.store = mock_store
+        app.state.scheduler = mock_scheduler
+        app.state.executor = mock_executor
+        unauth_client = TestClient(app, raise_server_exceptions=False)
+        resp = unauth_client.get("/syncs")
+        assert resp.status_code == 401
 
 
 # ── GET /syncs ────────────────────────────────────────────────────────────────
@@ -116,6 +150,16 @@ class TestListSyncs:
         assert "id" in item
         assert "name" in item
 
+    def test_list_filtered_by_org_id(self, client, mock_store):
+        client.get("/syncs")
+        call_kwargs = mock_store.list_active_syncs.call_args
+        assert call_kwargs.kwargs.get("org_id") == ORG_ID
+
+    def test_response_includes_mapping(self, client):
+        resp = client.get("/syncs")
+        item = resp.json()[0]
+        assert "mapping" in item
+
 
 # ── POST /syncs ───────────────────────────────────────────────────────────────
 
@@ -125,7 +169,6 @@ class TestCreateSync:
             "name": "New Sync",
             "adapter_id": "deploy",
             "connector_id": "salesforce",
-            "org_id": "org-abc",
             "deployment_id": "dep-001",
             "cron_expression": "0 * * * *",
             "mapping": {},
@@ -142,6 +185,11 @@ class TestCreateSync:
         mock_store.create_sync.assert_called_once()
         kwargs = mock_store.create_sync.call_args.kwargs
         assert kwargs.get("name") == "My New Sync"
+
+    def test_create_derives_org_id_from_jwt(self, client, mock_store):
+        client.post("/syncs", json=self._payload())
+        kwargs = mock_store.create_sync.call_args.kwargs
+        assert kwargs.get("org_id") == ORG_ID
 
     def test_scheduler_add_schedule_called(self, client, mock_scheduler):
         client.post("/syncs", json=self._payload())
@@ -174,6 +222,53 @@ class TestGetSync:
         resp = client.get("/syncs/missing")
         assert resp.status_code == 404
 
+    def test_wrong_org_returns_403(self, client, mock_store):
+        mock_store.get_sync.return_value = _make_sync_cfg(org_id="other-org-id")
+        resp = client.get("/syncs/sync-001")
+        assert resp.status_code == 403
+
+
+# ── PUT /syncs/{sync_id} ──────────────────────────────────────────────────────
+
+class TestUpdateSync:
+    def _payload(self, **overrides) -> dict:
+        base = {"name": "Updated Name"}
+        base.update(overrides)
+        return base
+
+    def test_returns_200(self, client):
+        resp = client.put("/syncs/sync-001", json=self._payload())
+        assert resp.status_code == 200
+
+    def test_store_update_sync_called(self, client, mock_store):
+        client.put("/syncs/sync-001", json=self._payload(name="New Name"))
+        mock_store.update_sync.assert_called_once()
+        call_args = mock_store.update_sync.call_args
+        assert call_args.args[0] == "sync-001" or call_args.kwargs.get("sync_id") == "sync-001"
+
+    def test_not_found_returns_404(self, client, mock_store):
+        mock_store.get_sync.return_value = None
+        resp = client.put("/syncs/missing", json=self._payload())
+        assert resp.status_code == 404
+
+    def test_wrong_org_returns_403(self, client, mock_store):
+        mock_store.get_sync.return_value = _make_sync_cfg(org_id="other-org-id")
+        resp = client.put("/syncs/sync-001", json=self._payload())
+        assert resp.status_code == 403
+
+    def test_cron_change_reschedules(self, client, mock_scheduler):
+        client.put("/syncs/sync-001", json={"cron_expression": "0 0 * * *"})
+        mock_scheduler.remove_schedule.assert_called_once_with("sync-001")
+        mock_scheduler.add_schedule.assert_called_once()
+
+    def test_no_cron_change_does_not_reschedule(self, client, mock_scheduler):
+        client.put("/syncs/sync-001", json={"name": "New Name"})
+        mock_scheduler.remove_schedule.assert_not_called()
+
+    def test_response_includes_mapping(self, client):
+        resp = client.put("/syncs/sync-001", json=self._payload())
+        assert "mapping" in resp.json()
+
 
 # ── DELETE /syncs/{sync_id} ───────────────────────────────────────────────────
 
@@ -195,6 +290,11 @@ class TestDeactivateSync:
         resp = client.delete("/syncs/missing")
         assert resp.status_code == 404
 
+    def test_wrong_org_returns_403(self, client, mock_store):
+        mock_store.get_sync.return_value = _make_sync_cfg(org_id="other-org-id")
+        resp = client.delete("/syncs/sync-001")
+        assert resp.status_code == 403
+
 
 # ── GET /syncs/{sync_id}/runs ─────────────────────────────────────────────────
 
@@ -215,6 +315,11 @@ class TestListRuns:
         resp = client.get("/syncs/missing/runs")
         assert resp.status_code == 404
 
+    def test_wrong_org_returns_403(self, client, mock_store):
+        mock_store.get_sync.return_value = _make_sync_cfg(org_id="other-org-id")
+        resp = client.get("/syncs/sync-001/runs")
+        assert resp.status_code == 403
+
 
 # ── POST /syncs/{sync_id}/trigger ─────────────────────────────────────────────
 
@@ -231,6 +336,11 @@ class TestTrigger:
         mock_store.get_sync.return_value = None
         resp = client.post("/syncs/missing/trigger")
         assert resp.status_code == 404
+
+    def test_wrong_org_returns_403(self, client, mock_store):
+        mock_store.get_sync.return_value = _make_sync_cfg(org_id="other-org-id")
+        resp = client.post("/syncs/sync-001/trigger")
+        assert resp.status_code == 403
 
     def test_response_contains_run_info(self, client):
         resp = client.post("/syncs/sync-001/trigger")

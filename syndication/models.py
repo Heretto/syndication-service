@@ -7,6 +7,7 @@ application layer via hop-core's organisation APIs.
 """
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -43,6 +44,13 @@ class SyncConfig(Base):
 
     runs = relationship("SyncRun", back_populates="sync", cascade="all, delete-orphan")
     records = relationship("SyncRecord", back_populates="sync", cascade="all, delete-orphan")
+
+    @property
+    def mapping(self) -> dict:
+        try:
+            return json.loads(self.mapping_json or "{}")
+        except (ValueError, TypeError):
+            return {}
 
 
 class SyncRun(Base):

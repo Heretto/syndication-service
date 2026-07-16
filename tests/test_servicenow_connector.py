@@ -357,6 +357,39 @@ class TestRewriteLinks:
 
 class TestDeferredLinkFixup:
     async def test_returns_non_negative_int(self):
-        n = await _conn().deferred_link_fixup("run-1", {"uuid-a": "target-a"})
+        with respx.mock() as mock:
+            mock.get(_article_url("target-a")).mock(
+                return_value=httpx.Response(200, json={"result": {"text": ""}})
+            )
+            n = await _conn().deferred_link_fixup("run-1", {"uuid-a": "target-a"})
         assert isinstance(n, int)
         assert n >= 0
+
+    async def test_modified_article_increments_count(self):
+        link_map = {"uuid-a": "art-sn-001"}
+        with respx.mock() as mock:
+            mock.get(_article_url("art-sn-001")).mock(
+                return_value=httpx.Response(200, json={"result": {"text": '<a href="uuid-a">link</a>'}})
+            )
+            mock.patch(_article_url("art-sn-001")).mock(
+                return_value=httpx.Response(200, json={"result": {}})
+            )
+            n = await _conn().deferred_link_fixup("run-1", link_map)
+        assert n == 1
+
+    async def test_unchanged_article_not_patched(self):
+        link_map = {"uuid-b": "art-sn-002"}
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(_article_url("art-sn-002")).mock(
+                return_value=httpx.Response(200, json={"result": {"text": "<p>No links</p>"}})
+            )
+            patch_route = mock.patch(_article_url("art-sn-002")).mock(
+                return_value=httpx.Response(200, json={"result": {}})
+            )
+            n = await _conn().deferred_link_fixup("run-1", link_map)
+        assert n == 0
+        assert not patch_route.called
+
+    async def test_empty_link_map_returns_zero(self):
+        n = await _conn().deferred_link_fixup("run-1", {})
+        assert n == 0

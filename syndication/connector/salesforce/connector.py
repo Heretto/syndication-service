@@ -200,10 +200,39 @@ class SalesforceConnector(ITargetConnector):
     ) -> int:
         """Post-batch link rewrite pass.
 
-        In the minimal implementation the state of which articles were loaded
-        in *run_id* is not yet tracked, so 0 is returned.  A full
-        implementation would query the state store for the run's articles,
-        re-fetch each, rewrite links, and re-upsert.
+        For each source_uuid → article_id pair in *link_map*:
+        1. Fetch the current article HTML body from Salesforce.
+        2. Rewrite any inter-article links using the full URL map.
+        3. PATCH the article if the HTML changed.
+
+        Returns the number of articles actually modified.
         """
-        # TODO: query state store for articles loaded in run_id, re-upsert each
-        return 0
+        if not link_map:
+            return 0
+
+        base = self._base_url()
+
+        # Build url_map: source_uuid → full Salesforce article URL
+        url_map = {
+            source_uuid: f"{self._instance_url}/articles/{article_id}"
+            for source_uuid, article_id in link_map.items()
+        }
+
+        count = 0
+        for source_uuid, article_id in link_map.items():
+            resp = await self._request(
+                "GET",
+                f"{base}/sobjects/{self._kav_type}/{article_id}",
+            )
+            body = resp.json()
+            current = body.get("Body", "") or ""
+            rewritten = await self.rewrite_links(current, url_map)
+            if rewritten != current:
+                await self._request(
+                    "PATCH",
+                    f"{base}/sobjects/{self._kav_type}/{article_id}",
+                    json={"Body": rewritten},
+                )
+                count += 1
+
+        return count

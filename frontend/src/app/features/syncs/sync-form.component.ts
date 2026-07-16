@@ -1,7 +1,7 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormBuilder, FormArray, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -9,9 +9,15 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { SyncService, CreateSyncInput } from '../../core/services/sync.service';
+import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CronDisplayComponent } from '../../shared/components/cron-display/cron-display.component';
+
+const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
+  salesforce: { title: 'Title', html_body: 'Body' },
+  servicenow: { title: 'short_description', html_body: 'text' },
+  zendesk: { title: 'title', html_body: 'body' },
+};
 
 @Component({
   selector: 'app-sync-form',
@@ -82,22 +88,18 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
           <h2 class="section-title">Connection Details</h2>
           <div class="form-row">
             <mat-form-field appearance="outline" class="form-field">
-              <mat-label>Organization ID</mat-label>
-              <input matInput formControlName="org_id" placeholder="your-org-uuid">
-              <mat-error *ngIf="form.get('org_id')?.hasError('required')">Required</mat-error>
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="form-field">
               <mat-label>Deployment ID</mat-label>
               <input matInput formControlName="deployment_id" placeholder="deploy-uuid (optional)">
             </mat-form-field>
-          </div>
 
-          <mat-form-field appearance="outline" class="form-field-full">
-            <mat-label>Credential ID</mat-label>
-            <input matInput formControlName="credential_id" placeholder="credential-uuid (from Credentials)">
-            <mat-hint>Reference to a stored credential in the platform</mat-hint>
-          </mat-form-field>
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Credential ID</mat-label>
+              <input matInput formControlName="credential_id" placeholder="credential-uuid (from Credentials)">
+            </mat-form-field>
+          </div>
+          <mat-hint style="font-size:12px;color:#5e6e82;display:block;margin-top:-8px">
+            Credential is looked up from the platform — no secrets stored here.
+          </mat-hint>
         </section>
 
         <!-- Schedule -->
@@ -113,6 +115,35 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
             <mat-icon class="cron-icon">schedule</mat-icon>
             <app-cron-display [expression]="form.get('cron_expression')?.value ?? ''"></app-cron-display>
           </div>
+        </section>
+
+        <!-- Field mapping -->
+        <section class="form-section">
+          <h2 class="section-title">Field Mapping</h2>
+          <p class="mapping-hint">Map source IR fields to target knowledge-base fields.</p>
+
+          <div formArrayName="mapping" class="mapping-list">
+            <div *ngFor="let row of mappingArray.controls; let i = index"
+                 [formGroupName]="i" class="mapping-row">
+              <mat-form-field appearance="outline" class="mapping-field">
+                <mat-label>Source Field</mat-label>
+                <input matInput formControlName="ir_field" placeholder="e.g. title">
+              </mat-form-field>
+              <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+              <mat-form-field appearance="outline" class="mapping-field">
+                <mat-label>Target Field</mat-label>
+                <input matInput formControlName="target_field" placeholder="e.g. Title">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeMappingRow(i)"
+                      class="remove-row-btn" aria-label="Remove row">
+                <mat-icon>remove_circle_outline</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <button mat-stroked-button type="button" (click)="addMappingRow()" class="add-row-btn">
+            <mat-icon>add</mat-icon> Add Field
+          </button>
         </section>
 
         <!-- Actions -->
@@ -174,6 +205,19 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
     }
     .cron-icon { font-size: 14px; width: 14px; height: 14px; color: #5e6e82; }
 
+    .mapping-hint { font-size: 12.5px; color: #5e6e82; margin: 0 0 14px; }
+    .mapping-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .mapping-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto;
+      align-items: center;
+      gap: 8px;
+    }
+    .mapping-field { width: 100%; }
+    .mapping-arrow { font-size: 18px; width: 18px; height: 18px; color: #5e6e82; flex-shrink: 0; }
+    .remove-row-btn { color: #de350b !important; flex-shrink: 0; }
+    .add-row-btn { border-color: #dee2ec; color: #5e6e82; font-size: 12.5px; }
+
     .form-actions {
       display: flex;
       justify-content: flex-end;
@@ -195,19 +239,25 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
 export class SyncFormComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
+  private fb = inject(FormBuilder);
 
   isEdit = false;
   saving = false;
+  private editId: string | null = null;
 
-  form = inject(FormBuilder).group({
+  form = this.fb.group({
     name:            ['', Validators.required],
     adapter_id:      ['deploy', Validators.required],
     connector_id:    ['salesforce', Validators.required],
-    org_id:          ['', Validators.required],
     deployment_id:   [''],
     credential_id:   [''],
     cron_expression: ['0 * * * *', Validators.required],
+    mapping:         this.fb.array<FormGroup>([]),
   });
+
+  get mappingArray(): FormArray {
+    return this.form.get('mapping') as FormArray;
+  }
 
   constructor(
     private syncService: SyncService,
@@ -219,6 +269,7 @@ export class SyncFormComponent implements OnInit {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
       this.isEdit = true;
+      this.editId = id;
       this.syncService.getById(id)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(sync => {
@@ -226,38 +277,99 @@ export class SyncFormComponent implements OnInit {
             name:            sync.name,
             adapter_id:      sync.adapter_id,
             connector_id:    sync.connector_id,
-            org_id:          sync.org_id,
             deployment_id:   sync.deployment_id ?? '',
             credential_id:   sync.credential_id ?? '',
             cron_expression: sync.cron_expression,
           });
+          // Populate mapping from existing sync
+          this.mappingArray.clear();
+          for (const [irField, targetField] of Object.entries(sync.mapping || {})) {
+            this.mappingArray.push(this._createMappingRow(irField, targetField));
+          }
         });
+    } else {
+      // Pre-populate mapping defaults for the initially selected connector
+      this._applyDefaultMapping(this.form.get('connector_id')!.value);
+
+      // Update defaults when connector changes (create mode only)
+      this.form.get('connector_id')!.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(connectorId => this._applyDefaultMapping(connectorId));
     }
+  }
+
+  private _createMappingRow(irField = '', targetField = ''): FormGroup {
+    return this.fb.group({ ir_field: [irField], target_field: [targetField] });
+  }
+
+  private _applyDefaultMapping(connectorId: string | null): void {
+    this.mappingArray.clear();
+    const defaults = DEFAULT_MAPPINGS[connectorId || ''] || {};
+    for (const [irField, targetField] of Object.entries(defaults)) {
+      this.mappingArray.push(this._createMappingRow(irField, targetField));
+    }
+  }
+
+  addMappingRow(): void {
+    this.mappingArray.push(this._createMappingRow());
+  }
+
+  removeMappingRow(index: number): void {
+    this.mappingArray.removeAt(index);
+  }
+
+  private _buildMappingDict(): Record<string, string> {
+    const result: Record<string, string> = {};
+    for (const row of this.mappingArray.value as Array<{ ir_field: string; target_field: string }>) {
+      if (row.ir_field && row.target_field) {
+        result[row.ir_field] = row.target_field;
+      }
+    }
+    return result;
   }
 
   onSubmit() {
     if (this.form.invalid) { this.form.markAllAsTouched(); return; }
     this.saving = true;
-
     const raw = this.form.getRawValue();
-    const input: CreateSyncInput = {
-      name:            raw.name!,
-      adapter_id:      raw.adapter_id!,
-      connector_id:    raw.connector_id!,
-      org_id:          raw.org_id!,
-      deployment_id:   raw.deployment_id ?? '',
-      cron_expression: raw.cron_expression!,
-      credential_id:   raw.credential_id || undefined,
-    };
+    const mapping = this._buildMappingDict();
 
-    this.syncService.create(input)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: sync => {
-          this.notifications.success('Sync created successfully');
-          this.router.navigate(['/syncs', sync.id]);
-        },
-        error: () => { this.saving = false; },
-      });
+    if (this.isEdit && this.editId) {
+      const input: UpdateSyncInput = {
+        name:            raw.name ?? undefined,
+        cron_expression: raw.cron_expression ?? undefined,
+        deployment_id:   raw.deployment_id || undefined,
+        credential_id:   raw.credential_id || undefined,
+        mapping,
+      };
+      this.syncService.update(this.editId, input)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: sync => {
+            this.notifications.success('Sync updated successfully');
+            this.router.navigate(['/syncs', sync.id]);
+          },
+          error: () => { this.saving = false; },
+        });
+    } else {
+      const input: CreateSyncInput = {
+        name:            raw.name!,
+        adapter_id:      raw.adapter_id!,
+        connector_id:    raw.connector_id!,
+        deployment_id:   raw.deployment_id ?? '',
+        cron_expression: raw.cron_expression!,
+        mapping,
+        credential_id:   raw.credential_id || undefined,
+      };
+      this.syncService.create(input)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: sync => {
+            this.notifications.success('Sync created successfully');
+            this.router.navigate(['/syncs', sync.id]);
+          },
+          error: () => { this.saving = false; },
+        });
+    }
   }
 }

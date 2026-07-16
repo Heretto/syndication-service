@@ -13,6 +13,7 @@ export interface SyncConfig {
   is_active: boolean;
   high_water_mark: string | null;
   credential_id: string | null;
+  mapping: Record<string, string>;
   created_at: string | null;
 }
 
@@ -32,11 +33,18 @@ export interface CreateSyncInput {
   name: string;
   adapter_id: string;
   connector_id: string;
-  org_id: string;
   deployment_id: string;
   cron_expression: string;
   mapping?: Record<string, string>;
   credential_id?: string;
+}
+
+export interface UpdateSyncInput {
+  name?: string;
+  cron_expression?: string;
+  deployment_id?: string;
+  credential_id?: string;
+  mapping?: Record<string, string>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -53,6 +61,10 @@ export class SyncService {
 
   create(input: CreateSyncInput): Observable<SyncConfig> {
     return this.api.post<SyncConfig>('/syncs', input);
+  }
+
+  update(id: string, input: UpdateSyncInput): Observable<SyncConfig> {
+    return this.api.put<SyncConfig>(`/syncs/${id}`, input);
   }
 
   delete(id: string): Observable<void> {

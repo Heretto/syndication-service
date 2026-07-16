@@ -25,6 +25,11 @@ RUN pip install --no-cache-dir -e .
 
 RUN mkdir -p /app/data
 
+# Run as a non-root user for security
+RUN useradd --no-create-home --shell /bin/false appuser \
+    && chown -R appuser /app/data
+USER appuser
+
 ENV DATABASE_URL=sqlite:////app/data/syndication.db
 
 # Run migrations then start the server

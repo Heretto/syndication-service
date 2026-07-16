@@ -88,10 +88,48 @@ class SyncStateStore:
         finally:
             db.close()
 
-    def list_active_syncs(self) -> list[SyncConfig]:
+    def list_active_syncs(self, org_id: str | None = None) -> list[SyncConfig]:
         db = self._session()
         try:
-            return db.query(SyncConfig).filter(SyncConfig.is_active.is_(True)).all()
+            q = db.query(SyncConfig).filter(SyncConfig.is_active.is_(True))
+            if org_id is not None:
+                q = q.filter(SyncConfig.org_id == org_id)
+            return q.all()
+        finally:
+            db.close()
+
+    def update_sync(
+        self,
+        sync_id: str,
+        name: str | None = None,
+        cron_expression: str | None = None,
+        deployment_id: str | None = None,
+        credential_id: str | None = None,
+        mapping: dict | None = None,
+    ) -> SyncConfig:
+        db = self._session()
+        try:
+            cfg = db.query(SyncConfig).filter(SyncConfig.id == sync_id).first()
+            if cfg is None:
+                raise ValueError(f"Sync {sync_id!r} not found")
+            if name is not None:
+                cfg.name = name
+            if cron_expression is not None:
+                cfg.cron_expression = cron_expression
+            if deployment_id is not None:
+                cfg.deployment_id = deployment_id
+            if credential_id is not None:
+                cfg.credential_id = credential_id
+            if mapping is not None:
+                cfg.mapping_json = json.dumps(mapping)
+            cfg.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            db.refresh(cfg)
+            db.expunge(cfg)
+            return cfg
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
 
