@@ -150,92 +150,177 @@ class TestSanitizeHtml:
 # ── upsert_article ────────────────────────────────────────────────────────────
 
 class TestUpsertArticle:
-    def _url(self, page: IRPage) -> str:
-        return f"{BASE}/sobjects/{KAV_TYPE}/{EXT_FIELD}/{page.uuid}"
+    """upsert_article uses SOQL query-first; no External ID field required."""
 
-    async def test_upsert_makes_patch_request(self):
+    def _query_url(self) -> str:
+        return f"{BASE}/query"
+
+    def _sobject_url(self, article_id: str = "") -> str:
+        base = f"{BASE}/sobjects/{KAV_TYPE}"
+        return f"{base}/{article_id}" if article_id else base
+
+    def _mock_query(self, mock, records: list) -> None:
+        mock.get(self._query_url()).mock(
+            return_value=httpx.Response(200, json={"records": records})
+        )
+
+    # ── create (no existing record) ───────────────────────────────────────────
+
+    async def test_create_returns_upsert_result(self):
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            mock.patch(self._url(page)).mock(
-                return_value=httpx.Response(
-                    201, json={"id": "ka01AAA", "success": True, "created": True}
-                )
+            self._mock_query(mock, [])
+            mock.post(self._sobject_url()).mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             result = await conn.upsert_article(page, FIELD_MAP)
 
         assert isinstance(result, UpsertResult)
-
-    async def test_upsert_created_true_on_201(self):
-        conn = _conn()
-        page = _make_ir_page()
-        with respx.mock() as mock:
-            mock.patch(self._url(page)).mock(
-                return_value=httpx.Response(
-                    201, json={"id": "ka01AAA", "success": True, "created": True}
-                )
-            )
-            result = await conn.upsert_article(page, FIELD_MAP)
-
         assert result.created is True
-        assert result.target_article_id == "ka01AAA"
+        assert result.target_article_id == "ka01NEW"
 
-    async def test_upsert_created_false_on_204(self):
+    async def test_create_stamps_tracking_field_in_payload(self):
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            mock.patch(self._url(page)).mock(return_value=httpx.Response(204))
-            result = await conn.upsert_article(page, FIELD_MAP)
+            self._mock_query(mock, [])
+            post_route = mock.post(self._sobject_url()).mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            )
+            await conn.upsert_article(page, FIELD_MAP)
 
-        assert result.created is False
-        assert result.target_article_id == page.uuid
+        payload = json.loads(post_route.calls.last.request.content)
+        assert payload.get(EXT_FIELD) == page.uuid
 
-    async def test_upsert_sends_title(self):
+    async def test_create_sends_mapped_title(self):
         conn = _conn()
         page = _make_ir_page(title="My Article Title")
         with respx.mock() as mock:
-            route = mock.patch(self._url(page)).mock(
-                return_value=httpx.Response(
-                    201, json={"id": "ka01AAA", "success": True, "created": True}
-                )
+            self._mock_query(mock, [])
+            post_route = mock.post(self._sobject_url()).mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             await conn.upsert_article(page, FIELD_MAP)
 
-        payload = json.loads(route.calls.last.request.content)
+        payload = json.loads(post_route.calls.last.request.content)
         assert payload.get("Title") == "My Article Title"
 
-    async def test_upsert_sends_html_body(self):
+    async def test_create_sends_mapped_html_body(self):
         conn = _conn()
         page = _make_ir_page(html_body="<p>Body text</p>")
         with respx.mock() as mock:
-            route = mock.patch(self._url(page)).mock(
-                return_value=httpx.Response(
-                    201, json={"id": "ka01AAA", "success": True, "created": True}
-                )
+            self._mock_query(mock, [])
+            post_route = mock.post(self._sobject_url()).mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             await conn.upsert_article(page, FIELD_MAP)
 
-        payload = json.loads(route.calls.last.request.content)
+        payload = json.loads(post_route.calls.last.request.content)
         assert payload.get("Answer__c") == "<p>Body text</p>"
+
+    # ── update — existing Draft ───────────────────────────────────────────────
+
+    async def test_update_draft_patches_in_place(self):
+        conn = _conn()
+        page = _make_ir_page()
+        with respx.mock() as mock:
+            self._mock_query(mock, [{"Id": "ka01DRF", "PublishStatus": "Draft"}])
+            patch_route = mock.patch(self._sobject_url("ka01DRF")).mock(
+                return_value=httpx.Response(204)
+            )
+            result = await conn.upsert_article(page, FIELD_MAP)
+
+        assert result.created is False
+        assert result.target_article_id == "ka01DRF"
+        assert patch_route.called
+
+    async def test_update_draft_sends_mapped_fields(self):
+        conn = _conn()
+        page = _make_ir_page(title="Updated Title")
+        with respx.mock() as mock:
+            self._mock_query(mock, [{"Id": "ka01DRF", "PublishStatus": "Draft"}])
+            patch_route = mock.patch(self._sobject_url("ka01DRF")).mock(
+                return_value=httpx.Response(204)
+            )
+            await conn.upsert_article(page, FIELD_MAP)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert payload.get("Title") == "Updated Title"
+
+    # ── update — existing Online (published) article ───────────────────────────
+
+    async def test_update_online_creates_edit_draft_first(self):
+        conn = _conn()
+        page = _make_ir_page()
+        edit_url = f"{BASE}/knowledgeManagement/articleVersions"
+        with respx.mock() as mock:
+            self._mock_query(mock, [{"Id": "ka01PUB", "PublishStatus": "Online"}])
+            edit_route = mock.post(edit_url).mock(
+                return_value=httpx.Response(201, json={"id": "ka01EDT", "success": True})
+            )
+            mock.patch(self._sobject_url("ka01EDT")).mock(
+                return_value=httpx.Response(204)
+            )
+            result = await conn.upsert_article(page, FIELD_MAP)
+
+        assert edit_route.called
+        edit_payload = json.loads(edit_route.calls.last.request.content)
+        assert edit_payload.get("masterVersionId") == "ka01PUB"
+        assert result.target_article_id == "ka01EDT"
+        assert result.created is False
+
+    async def test_update_online_patches_the_edit_draft(self):
+        conn = _conn()
+        page = _make_ir_page(title="New Version Title")
+        edit_url = f"{BASE}/knowledgeManagement/articleVersions"
+        with respx.mock() as mock:
+            self._mock_query(mock, [{"Id": "ka01PUB", "PublishStatus": "Online"}])
+            mock.post(edit_url).mock(
+                return_value=httpx.Response(201, json={"id": "ka01EDT", "success": True})
+            )
+            patch_route = mock.patch(self._sobject_url("ka01EDT")).mock(
+                return_value=httpx.Response(204)
+            )
+            await conn.upsert_article(page, FIELD_MAP)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert payload.get("Title") == "New Version Title"
+
+    # ── auth ─────────────────────────────────────────────────────────────────
 
     async def test_upsert_sends_bearer_auth(self):
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            route = mock.patch(self._url(page)).mock(
-                return_value=httpx.Response(204)
+            query_route = mock.get(self._query_url()).mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(self._sobject_url()).mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             await conn.upsert_article(page, FIELD_MAP)
 
-        request = route.calls.last.request
+        request = query_route.calls.last.request
         assert f"Bearer {ACCESS_TOKEN}" in request.headers.get("Authorization", "")
 
-    async def test_upsert_http_error_raises(self):
+    # ── error handling ────────────────────────────────────────────────────────
+
+    async def test_upsert_query_error_raises(self):
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            mock.patch(self._url(page)).mock(
-                return_value=httpx.Response(400, json=[{"message": "bad"}])
+            mock.get(self._query_url()).mock(return_value=httpx.Response(401))
+            with pytest.raises(httpx.HTTPStatusError):
+                await conn.upsert_article(page, FIELD_MAP)
+
+    async def test_upsert_create_error_raises(self):
+        conn = _conn()
+        page = _make_ir_page()
+        with respx.mock() as mock:
+            self._mock_query(mock, [])
+            mock.post(self._sobject_url()).mock(
+                return_value=httpx.Response(400, json=[{"message": "bad field"}])
             )
             with pytest.raises(httpx.HTTPStatusError):
                 await conn.upsert_article(page, FIELD_MAP)

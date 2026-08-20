@@ -151,35 +151,66 @@ class SalesforceConnector(ITargetConnector):
         )
 
     async def upsert_article(self, ir: IRPage, mapping: dict) -> UpsertResult:
-        """Upsert a Knowledge article using the external ID for idempotency.
+        """Upsert a Knowledge article using a SOQL query for idempotency.
 
-        ``mapping`` is the field-map dict: ``{ir_field: sf_field_api_name}``.
-        On HTTP 201 the article was created; on 204 it was updated.
+        Lightning Knowledge does not support External ID on custom fields, so
+        we query by ``self._ext_field`` value instead of using the native
+        External ID upsert endpoint.
+
+        Lifecycle handling:
+          - No match    → POST a new draft; stamp ``self._ext_field = ir.uuid``.
+          - Draft match → PATCH the draft in place.
+          - Online match → POST to ``knowledgeManagement/articleVersions`` to
+            create an edit draft, then PATCH it; ``publish_article`` will
+            promote it back to Online.
         """
         base = self._base_url()
-        url = f"{base}/sobjects/{self._kav_type}/{self._ext_field}/{ir.uuid}"
 
-        # Build Salesforce payload from field_map
+        # Build field payload from mapping
         payload: dict[str, Any] = {}
         for ir_field, sf_field in mapping.items():
             value = getattr(ir, ir_field, None)
             if value is not None:
                 payload[sf_field] = value
 
-        resp = await self._request("PATCH", url, json=payload)
+        # 1. Query for any existing version by our tracking field
+        soql = (
+            f"SELECT Id, PublishStatus FROM {self._kav_type} "
+            f"WHERE {self._ext_field} = '{ir.uuid}' "
+            f"ORDER BY LastModifiedDate DESC LIMIT 1"
+        )
+        q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
+        records = q_resp.json().get("records", [])
 
-        if resp.status_code == 201:
-            body = resp.json()
-            return UpsertResult(
-                target_article_id=body["id"],
-                created=True,
+        if records:
+            rec = records[0]
+            article_id = rec["Id"]
+
+            if rec.get("PublishStatus") == "Online":
+                # Create an edit draft from the published version before patching
+                edit_resp = await self._request(
+                    "POST",
+                    f"{base}/knowledgeManagement/articleVersions",
+                    json={"masterVersionId": article_id},
+                )
+                article_id = edit_resp.json()["id"]
+
+            await self._request(
+                "PATCH",
+                f"{base}/sobjects/{self._kav_type}/{article_id}",
+                json=payload,
             )
+            return UpsertResult(target_article_id=article_id, created=False)
         else:
-            # 204 No Content → existing article updated; use uuid as stable ref
-            return UpsertResult(
-                target_article_id=ir.uuid,
-                created=False,
+            # New article: stamp our tracking field and create a draft
+            payload[self._ext_field] = ir.uuid
+            create_resp = await self._request(
+                "POST",
+                f"{base}/sobjects/{self._kav_type}",
+                json=payload,
             )
+            article_id = create_resp.json()["id"]
+            return UpsertResult(target_article_id=article_id, created=True)
 
     async def publish_article(self, target_article_id: str) -> None:
         """Publish a Knowledge article via the Knowledge Management API."""
