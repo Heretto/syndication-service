@@ -123,6 +123,45 @@ class TestArticleMappings:
         store.save_article_mapping(c1.id, "uuid-a", "target-c1")
         assert store.get_target_id(c2.id, "uuid-a") is None
 
+    def test_mark_articles_archived_sets_status(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
+        store.save_article_mapping(cfg.id, "uuid-1", "target-1")
+        store.save_article_mapping(cfg.id, "uuid-2", "target-2")
+        store.mark_articles_archived(cfg.id, ["uuid-1"])
+
+        from syndication.models import SyncRecord
+        from sqlalchemy import create_engine
+        engine = create_engine("sqlite:///:memory:", echo=False)
+        # Use the store's own session to check status
+        db = store._session()
+        rec1 = db.query(SyncRecord).filter_by(sync_id=cfg.id, source_uuid="uuid-1").first()
+        rec2 = db.query(SyncRecord).filter_by(sync_id=cfg.id, source_uuid="uuid-2").first()
+        db.close()
+        assert rec1.status == "archived"
+        assert rec2.status == "active"
+
+    def test_mark_articles_archived_empty_list_is_noop(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
+        store.save_article_mapping(cfg.id, "uuid-1", "target-1")
+        store.mark_articles_archived(cfg.id, [])  # should not raise
+
+        db = store._session()
+        from syndication.models import SyncRecord
+        rec = db.query(SyncRecord).filter_by(sync_id=cfg.id, source_uuid="uuid-1").first()
+        db.close()
+        assert rec.status == "active"
+
+    def test_mark_articles_archived_missing_uuid_is_noop(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
+        store.save_article_mapping(cfg.id, "uuid-1", "target-1")
+        store.mark_articles_archived(cfg.id, ["uuid-missing"])  # should not raise
+
+        db = store._session()
+        from syndication.models import SyncRecord
+        rec = db.query(SyncRecord).filter_by(sync_id=cfg.id, source_uuid="uuid-1").first()
+        db.close()
+        assert rec.status == "active"
+
 
 # ── Sync runs ─────────────────────────────────────────────────────────────────
 

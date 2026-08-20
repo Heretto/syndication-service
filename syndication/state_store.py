@@ -219,6 +219,21 @@ class SyncStateStore:
         finally:
             db.close()
 
+    def mark_articles_archived(
+        self, sync_id: str, source_uuids: list[str]
+    ) -> None:
+        """Mark SyncRecord rows as archived for the given source UUIDs."""
+        if not source_uuids:
+            return
+
+        def _archive(db: Session) -> None:
+            db.query(SyncRecord).filter(
+                SyncRecord.sync_id == sync_id,
+                SyncRecord.source_uuid.in_(source_uuids),
+            ).update({"status": "archived"}, synchronize_session="fetch")
+
+        self._with_session(_archive)
+
     # ── Sync runs ─────────────────────────────────────────────────────────────
 
     def create_run(self, sync_id: str, run_id: str) -> SyncRun:

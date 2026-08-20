@@ -82,14 +82,14 @@ class SyncExecutorService:
 
             since = self._store.get_high_water_mark(sync_id)
 
-            # Pre-fetch removed_target_ids so the pipeline can archive correctly.
-            # We call get_changed on the adapter to peek at the changeset; the
-            # pipeline will call it again internally.  This duplication is
-            # intentional: the executor and pipeline are independently testable.
-            removed_target_ids = self._store.get_target_ids_for_uuids(sync_id, [])
-            # (populated properly in integration: executor would call adapter.get_changed
-            #  first, then look up mappings — but for the pipeline contract we keep
-            #  removed_target_ids as a separate pre-computed dict.)
+            # Peek at the changeset to resolve removed UUIDs → target article IDs
+            # before the pipeline runs. The pipeline calls get_changed() again
+            # internally; the duplication is intentional so both layers remain
+            # independently testable.
+            peek = await adapter.get_changed(since=since)
+            removed_target_ids = self._store.get_target_ids_for_uuids(
+                sync_id, peek.removed_uuids
+            )
 
             result = await pipeline.run(
                 run_id=run_id,
@@ -103,6 +103,9 @@ class SyncExecutorService:
 
             for source_uuid, target_id in result.article_mappings.items():
                 self._store.save_article_mapping(sync_id, source_uuid, target_id)
+
+            if peek.removed_uuids:
+                self._store.mark_articles_archived(sync_id, peek.removed_uuids)
 
             self._store.complete_run(
                 run_id=run_id,

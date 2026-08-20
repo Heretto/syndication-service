@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch, call
 
 import pytest
 
+from syndication.ir.types import ChangeSet
 from syndication.pipeline.runner import PipelineResult
 from syndication.services.sync_executor import SyncExecutorService
 
@@ -41,8 +42,13 @@ def _make_state_store(cfg=None) -> MagicMock:
     store.set_high_water_mark = MagicMock()
     store.save_article_mapping = MagicMock()
     store.get_target_ids_for_uuids = MagicMock(return_value={})
+    store.mark_articles_archived = MagicMock()
     store.deactivate_sync = MagicMock()
     return store
+
+
+def _empty_changeset() -> ChangeSet:
+    return ChangeSet(changed=[], removed_uuids=[], high_water_mark="")
 
 
 def _make_pipeline_result(**overrides) -> PipelineResult:
@@ -71,7 +77,9 @@ def state_store() -> MagicMock:
 
 @pytest.fixture
 def mock_adapter():
-    return MagicMock()
+    adapter = MagicMock()
+    adapter.get_changed = AsyncMock(return_value=_empty_changeset())
+    return adapter
 
 
 @pytest.fixture
@@ -271,3 +279,100 @@ class TestFailureHandling:
             await executor.execute("sync-001")
 
         state_store.deactivate_sync.assert_not_called()
+
+
+# ── Removed-articles flow ─────────────────────────────────────────────────────
+
+class TestRemovedArticlesFlow:
+    async def test_adapter_get_changed_called_before_pipeline(
+        self, executor, mock_adapter, state_store
+    ):
+        """Executor must call adapter.get_changed() to peek at removed UUIDs."""
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(removed_count=0))
+            await executor.execute("sync-001")
+
+        mock_adapter.get_changed.assert_awaited_once()
+
+    async def test_removed_uuids_looked_up_in_state_store(
+        self, executor, mock_adapter, state_store
+    ):
+        """Removed UUIDs from the peek changeset must be passed to get_target_ids_for_uuids."""
+        mock_adapter.get_changed.return_value = ChangeSet(
+            changed=[], removed_uuids=["uuid-gone"], high_water_mark=""
+        )
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(removed_count=1))
+            await executor.execute("sync-001")
+
+        state_store.get_target_ids_for_uuids.assert_called_once_with(
+            "sync-001", ["uuid-gone"]
+        )
+
+    async def test_removed_target_ids_passed_to_pipeline(
+        self, executor, mock_adapter, state_store
+    ):
+        """The target IDs resolved from the state store must reach pipeline.run()."""
+        mock_adapter.get_changed.return_value = ChangeSet(
+            changed=[], removed_uuids=["uuid-gone"], high_water_mark=""
+        )
+        state_store.get_target_ids_for_uuids.return_value = {"uuid-gone": "sf-art-999"}
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(removed_count=1))
+            await executor.execute("sync-001")
+
+        run_call = instance.run.call_args
+        removed = run_call.kwargs.get("removed_target_ids") or (
+            run_call.args[2] if len(run_call.args) > 2 else None
+        )
+        assert removed == {"uuid-gone": "sf-art-999"}
+
+    async def test_removed_articles_marked_archived_in_store(
+        self, executor, mock_adapter, state_store
+    ):
+        """After a successful run, removed UUIDs must be marked archived."""
+        mock_adapter.get_changed.return_value = ChangeSet(
+            changed=[], removed_uuids=["uuid-a", "uuid-b"], high_water_mark=""
+        )
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(removed_count=2))
+            await executor.execute("sync-001")
+
+        state_store.mark_articles_archived.assert_called_once_with(
+            "sync-001", ["uuid-a", "uuid-b"]
+        )
+
+    async def test_no_removals_skips_mark_archived(
+        self, executor, mock_adapter, state_store
+    ):
+        """When there are no removed UUIDs, mark_articles_archived must not be called."""
+        mock_adapter.get_changed.return_value = _empty_changeset()
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(removed_count=0))
+            await executor.execute("sync-001")
+
+        state_store.mark_articles_archived.assert_not_called()
+
+    async def test_peek_uses_same_since_as_pipeline(
+        self, executor, mock_adapter, state_store
+    ):
+        """The peek call must use the same `since` cursor as the pipeline run."""
+        state_store.get_high_water_mark.return_value = "2026-07-15T10:00:00.000Z"
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result())
+            await executor.execute("sync-001")
+
+        peek_call = mock_adapter.get_changed.call_args
+        since_arg = peek_call.kwargs.get("since") or (
+            peek_call.args[0] if peek_call.args else None
+        )
+        assert since_arg == "2026-07-15T10:00:00.000Z"
