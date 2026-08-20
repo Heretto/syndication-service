@@ -67,8 +67,6 @@ def _oauth_conn() -> SalesforceConnector:
         api_version=API_VER,
         client_id="consumer_key_abc",
         client_secret="consumer_secret_xyz",
-        username="admin@myorg.com",
-        password="MyPass123TokenABC",
         knowledge_type=KAV_TYPE,
         external_id_field=EXT_FIELD,
     )

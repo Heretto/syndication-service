@@ -104,8 +104,6 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
             access_token=creds.get("access_token", ""),
             client_id=creds.get("client_id", ""),
             client_secret=creds.get("client_secret", ""),
-            username=creds.get("username", ""),
-            password=creds.get("password", ""),
             knowledge_type=creds.get("knowledge_type", "Knowledge__kav"),
             external_id_field=creds.get("external_id_field", "Heretto_UUID__c"),
         )

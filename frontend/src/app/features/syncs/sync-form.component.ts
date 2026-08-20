@@ -28,10 +28,8 @@ interface CredField {
 const CRED_FIELDS: Record<string, CredField[]> = {
   salesforce: [
     { key: 'instance_url',      label: 'Instance URL',            hint: 'https://myorg.my.salesforce.com' },
-    { key: 'client_id',         label: 'Consumer Key',            hint: 'Connected App Consumer Key' },
+    { key: 'client_id',         label: 'Consumer Key',            hint: 'External Client App Consumer Key' },
     { key: 'client_secret',     label: 'Consumer Secret',         inputType: 'password' },
-    { key: 'username',          label: 'SF Username',             hint: 'user@example.com' },
-    { key: 'password',          label: 'Password + Security Token', inputType: 'password', hint: 'PasswordSecurityToken (concatenated)' },
     { key: 'api_version',       label: 'API Version',             defaultVal: '65.0' },
     { key: 'knowledge_type',    label: 'Knowledge Object API Name', defaultVal: 'Knowledge__kav' },
     { key: 'external_id_field', label: 'Tracking Field API Name', defaultVal: 'Heretto_UUID__c' },

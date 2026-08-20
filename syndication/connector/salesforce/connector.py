@@ -40,8 +40,8 @@ class SalesforceConnector(ITargetConnector):
 
     Supports two auth modes:
     - Static token: pass ``access_token`` directly (backward-compat, no refresh).
-    - OAuth 2.0 username-password flow: pass ``client_id``, ``client_secret``,
-      ``username``, ``password`` (password + security token concatenated).
+    - OAuth 2.0 client credentials flow: pass ``client_id`` and ``client_secret``
+      from a Salesforce External Client App with Client Credentials Flow enabled.
       The connector acquires and caches the token on first use and retries
       once on 401.
     """
@@ -55,8 +55,6 @@ class SalesforceConnector(ITargetConnector):
         access_token: str = "",
         client_id: str = "",
         client_secret: str = "",
-        username: str = "",
-        password: str = "",
         knowledge_type: str = "Knowledge__kav",
         external_id_field: str = "Heretto_UUID__c",
     ) -> None:
@@ -65,8 +63,6 @@ class SalesforceConnector(ITargetConnector):
         self._static_token = access_token
         self._client_id = client_id
         self._client_secret = client_secret
-        self._username = username
-        self._password = password
         self._kav_type = knowledge_type
         self._ext_field = external_id_field
         self._cached_token: str | None = None
@@ -85,11 +81,9 @@ class SalesforceConnector(ITargetConnector):
             resp = await client.post(
                 f"{self._instance_url}/services/oauth2/token",
                 data={
-                    "grant_type": "password",
+                    "grant_type": "client_credentials",
                     "client_id": self._client_id,
                     "client_secret": self._client_secret,
-                    "username": self._username,
-                    "password": self._password,
                 },
             )
             resp.raise_for_status()
