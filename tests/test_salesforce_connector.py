@@ -187,16 +187,15 @@ class TestUpsertArticle:
 
     # ── create (no existing record) ───────────────────────────────────────────
 
-    KA_URL = f"{BASE}/sobjects/Knowledge__ka"
+    KAV_MGMT_URL = f"{BASE}/knowledgeManagement/articleVersions"
 
-    def _mock_create(self, mock, ka_id="ka01KA", kav_id="ka01NEW"):
-        """Mock the full create flow: SOQL miss, KA POST, KAV lookup, KAV PATCH."""
-        mock.get(self._query_url()).mock(side_effect=[
-            httpx.Response(200, json={"records": []}),               # initial SOQL: no match
-            httpx.Response(200, json={"records": [{"Id": kav_id}]}), # KAV lookup after KA create
-        ])
-        mock.post(self.KA_URL).mock(
-            return_value=httpx.Response(201, json={"id": ka_id, "success": True})
+    def _mock_create(self, mock, kav_id="ka01NEW"):
+        """Mock the full create flow: SOQL miss, articleVersions POST, KAV PATCH."""
+        mock.get(self._query_url()).mock(
+            return_value=httpx.Response(200, json={"records": []})
+        )
+        mock.post(self.KAV_MGMT_URL).mock(
+            return_value=httpx.Response(201, json={"id": kav_id, "success": True})
         )
         return mock.patch(self._sobject_url(kav_id)).mock(
             return_value=httpx.Response(204)
@@ -352,7 +351,7 @@ class TestUpsertArticle:
             mock.get(self._query_url()).mock(
                 return_value=httpx.Response(200, json={"records": []})
             )
-            mock.post(self.KA_URL).mock(
+            mock.post(self.KAV_MGMT_URL).mock(
                 return_value=httpx.Response(400, json=[{"message": "bad field"}])
             )
             with pytest.raises(httpx.HTTPStatusError):
@@ -529,13 +528,12 @@ class TestOAuthTokenAcquisition:
     """Connector obtains and caches a token via the username-password OAuth flow."""
 
     def _mock_full_create(self, mock):
-        """Mock SOQL miss + 3-step KA/KAV creation for OAuth tests."""
-        mock.get(f"{BASE}/query").mock(side_effect=[
-            httpx.Response(200, json={"records": []}),          # initial SOQL miss
-            httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),  # KAV lookup
-        ])
-        mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
-            return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
+        """Mock SOQL miss + articleVersions create flow for OAuth tests."""
+        mock.get(f"{BASE}/query").mock(
+            return_value=httpx.Response(200, json={"records": []})
+        )
+        mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+            return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
         )
         mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
             return_value=httpx.Response(204)
@@ -554,15 +552,14 @@ class TestOAuthTokenAcquisition:
         conn = _oauth_conn()
         with respx.mock() as mock:
             _mock_token(mock)
+            mock.get(f"{BASE}/query").mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            )
             patch_route = mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
                 return_value=httpx.Response(204)
-            )
-            mock.get(f"{BASE}/query").mock(side_effect=[
-                httpx.Response(200, json={"records": []}),
-                httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),
-            ])
-            mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
-                return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
             )
             await conn.upsert_article(_make_ir_page(), FIELD_MAP)
 
@@ -573,15 +570,14 @@ class TestOAuthTokenAcquisition:
         conn = _oauth_conn()
         with respx.mock() as mock:
             token_route = _mock_token(mock)
-            # Two full create flows
-            mock.get(f"{BASE}/query").mock(side_effect=[
-                httpx.Response(200, json={"records": []}),
-                httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),
-                httpx.Response(200, json={"records": []}),
-                httpx.Response(200, json={"records": [{"Id": "ka02NEW"}]}),
-            ])
-            mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
-                return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
+            mock.get(f"{BASE}/query").mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+                side_effect=[
+                    httpx.Response(201, json={"id": "ka01NEW", "success": True}),
+                    httpx.Response(201, json={"id": "ka02NEW", "success": True}),
+                ]
             )
             mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(return_value=httpx.Response(204))
             mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka02NEW").mock(return_value=httpx.Response(204))
@@ -595,14 +591,13 @@ class TestOAuthTokenAcquisition:
         conn._cached_token = "stale-token"
         with respx.mock() as mock:
             token_route = _mock_token(mock)
-            # First SOQL returns 401 (stale), retry returns empty, then KA create flow
+            # First SOQL returns 401 (stale), retry returns empty → articleVersions create
             mock.get(f"{BASE}/query").mock(side_effect=[
                 httpx.Response(401),
                 httpx.Response(200, json={"records": []}),
-                httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),
             ])
-            mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
-                return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
+            mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
                 return_value=httpx.Response(204)
