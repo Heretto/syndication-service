@@ -151,6 +151,38 @@ class TestArticleMappings:
         db.close()
         assert rec.status == "active"
 
+    def test_list_records_returns_all_for_sync(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
+        store.save_article_mapping(cfg.id, "uuid-1", "target-1")
+        store.save_article_mapping(cfg.id, "uuid-2", "target-2")
+        records = store.list_records(cfg.id)
+        assert len(records) == 2
+        uuids = {r.source_uuid for r in records}
+        assert uuids == {"uuid-1", "uuid-2"}
+
+    def test_list_records_status_filter(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
+        store.save_article_mapping(cfg.id, "uuid-1", "target-1")
+        store.save_article_mapping(cfg.id, "uuid-2", "target-2")
+        store.mark_articles_archived(cfg.id, ["uuid-2"])
+        active = store.list_records(cfg.id, status="active")
+        archived = store.list_records(cfg.id, status="archived")
+        assert len(active) == 1 and active[0].source_uuid == "uuid-1"
+        assert len(archived) == 1 and archived[0].source_uuid == "uuid-2"
+
+    def test_list_records_limit(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
+        for i in range(5):
+            store.save_article_mapping(cfg.id, f"uuid-{i}", f"target-{i}")
+        records = store.list_records(cfg.id, limit=3)
+        assert len(records) == 3
+
+    def test_list_records_isolated_by_sync(self, store: SyncStateStore):
+        c1 = store.create_sync("S1", "deploy", "noop", "org", "dep1", "* * * * *")
+        c2 = store.create_sync("S2", "deploy", "noop", "org", "dep2", "* * * * *")
+        store.save_article_mapping(c1.id, "uuid-a", "target-a")
+        assert store.list_records(c2.id) == []
+
     def test_mark_articles_archived_missing_uuid_is_noop(self, store: SyncStateStore):
         cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "* * * * *")
         store.save_article_mapping(cfg.id, "uuid-1", "target-1")

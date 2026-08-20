@@ -219,6 +219,32 @@ class SyncStateStore:
         finally:
             db.close()
 
+    def list_records(
+        self,
+        sync_id: str,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[SyncRecord]:
+        """Return synced article records for *sync_id*, newest first.
+
+        Args:
+            sync_id: The sync configuration ID.
+            status:  Optional filter — ``"active"`` or ``"archived"``.
+            limit:   Maximum number of rows to return (default 100).
+        """
+        db = self._session()
+        try:
+            q = (
+                db.query(SyncRecord)
+                .filter(SyncRecord.sync_id == sync_id)
+                .order_by(SyncRecord.last_synced_at.desc())
+            )
+            if status is not None:
+                q = q.filter(SyncRecord.status == status)
+            return q.limit(limit).all()
+        finally:
+            db.close()
+
     def mark_articles_archived(
         self, sync_id: str, source_uuids: list[str]
     ) -> None:

@@ -99,6 +99,26 @@ class SyncRunResponse(BaseModel):
         )
 
 
+class SyncRecordResponse(BaseModel):
+    id: str
+    sync_id: str
+    source_uuid: str
+    target_article_id: str
+    status: str
+    last_synced_at: datetime | None
+
+    @classmethod
+    def from_model(cls, rec: Any) -> "SyncRecordResponse":
+        return cls(
+            id=rec.id,
+            sync_id=rec.sync_id,
+            source_uuid=rec.source_uuid,
+            target_article_id=rec.target_article_id,
+            status=rec.status,
+            last_synced_at=getattr(rec, "last_synced_at", None),
+        )
+
+
 class TriggerResponse(BaseModel):
     sync_id: str
     message: str
@@ -201,6 +221,24 @@ def list_runs(request: Request, sync_id: str, context: OrgCtx, limit: int = 20):
     _assert_same_org(cfg, context)
     runs = _store(request).list_runs(sync_id, limit=limit)
     return [SyncRunResponse.from_model(r) for r in runs]
+
+
+@router.get("/{sync_id}/records", response_model=list[SyncRecordResponse])
+def list_records(
+    request: Request,
+    sync_id: str,
+    context: OrgCtx,
+    record_status: str | None = None,
+    limit: int = 100,
+):
+    """List synced article records for a sync.
+
+    Use ``record_status=active`` or ``record_status=archived`` to filter.
+    """
+    cfg = _get_sync_or_404(request, sync_id)
+    _assert_same_org(cfg, context)
+    records = _store(request).list_records(sync_id, status=record_status, limit=limit)
+    return [SyncRecordResponse.from_model(r) for r in records]
 
 
 @router.post("/{sync_id}/trigger", response_model=TriggerResponse, status_code=status.HTTP_202_ACCEPTED)

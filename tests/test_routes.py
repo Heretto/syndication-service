@@ -58,6 +58,19 @@ def _make_sync_cfg(**overrides) -> MagicMock:
     return cfg
 
 
+def _make_record(**overrides) -> MagicMock:
+    rec = MagicMock()
+    rec.id = "rec-001"
+    rec.sync_id = "sync-001"
+    rec.source_uuid = "uuid-aaa"
+    rec.target_article_id = "sf-art-001"
+    rec.status = "active"
+    rec.last_synced_at = datetime(2026, 7, 15, 10, 0, tzinfo=timezone.utc)
+    for k, v in overrides.items():
+        setattr(rec, k, v)
+    return rec
+
+
 def _make_run(**overrides) -> MagicMock:
     run = MagicMock()
     run.id = "run-001"
@@ -83,6 +96,7 @@ def mock_store():
     store.update_sync = MagicMock(return_value=_make_sync_cfg())
     store.deactivate_sync = MagicMock()
     store.list_runs = MagicMock(return_value=[_make_run()])
+    store.list_records = MagicMock(return_value=[_make_record()])
     return store
 
 
@@ -347,3 +361,55 @@ class TestTrigger:
         body = resp.json()
         assert "sync_id" in body
         assert body["sync_id"] == "sync-001"
+
+
+# ── GET /syncs/{sync_id}/records ──────────────────────────────────────────────
+
+class TestListRecords:
+    def test_returns_200(self, client):
+        resp = client.get("/syncs/sync-001/records")
+        assert resp.status_code == 200
+
+    def test_returns_list_of_records(self, client):
+        resp = client.get("/syncs/sync-001/records")
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+
+    def test_record_fields_present(self, client):
+        resp = client.get("/syncs/sync-001/records")
+        rec = resp.json()[0]
+        assert rec["source_uuid"] == "uuid-aaa"
+        assert rec["target_article_id"] == "sf-art-001"
+        assert rec["status"] == "active"
+        assert "last_synced_at" in rec
+
+    def test_status_filter_passed_to_store(self, client, mock_store):
+        client.get("/syncs/sync-001/records?record_status=archived")
+        call_kwargs = mock_store.list_records.call_args.kwargs
+        assert call_kwargs.get("status") == "archived"
+
+    def test_no_status_filter_passes_none(self, client, mock_store):
+        client.get("/syncs/sync-001/records")
+        call_kwargs = mock_store.list_records.call_args.kwargs
+        assert call_kwargs.get("status") is None
+
+    def test_limit_param_passed_to_store(self, client, mock_store):
+        client.get("/syncs/sync-001/records?limit=25")
+        call_kwargs = mock_store.list_records.call_args.kwargs
+        assert call_kwargs.get("limit") == 25
+
+    def test_sync_not_found_returns_404(self, client, mock_store):
+        mock_store.get_sync.return_value = None
+        resp = client.get("/syncs/missing/records")
+        assert resp.status_code == 404
+
+    def test_wrong_org_returns_403(self, client, mock_store):
+        mock_store.get_sync.return_value = _make_sync_cfg(org_id="other-org-id")
+        resp = client.get("/syncs/sync-001/records")
+        assert resp.status_code == 403
+
+    def test_empty_records_returns_empty_list(self, client, mock_store):
+        mock_store.list_records.return_value = []
+        resp = client.get("/syncs/sync-001/records")
+        assert resp.json() == []
