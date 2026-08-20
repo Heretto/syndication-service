@@ -72,6 +72,7 @@ def build_adapter(cfg, session_factory) -> ISourceAdapter:
             deployment_id=cfg.deployment_id or "",
             api_key=creds.get("api_key", ""),
             audience=creds.get("audience", settings.deploy_default_audience),
+            base_url=creds.get("base_url") or None,
         )
 
     if cfg.adapter_id == "bundle":

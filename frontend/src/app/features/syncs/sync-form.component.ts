@@ -34,6 +34,7 @@ const CRED_FIELDS: Record<string, CredField[]> = {
     { key: 'knowledge_type',    label: 'Knowledge Object API Name', defaultVal: 'Knowledge__kav' },
     { key: 'external_id_field', label: 'Tracking Field API Name', defaultVal: 'Heretto_UUID__c' },
     { key: 'api_key',           label: 'Heretto Deploy API Key',  inputType: 'password' },
+    { key: 'base_url',          label: 'Deploy API Base URL',     hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
   ],
   servicenow: [
     { key: 'instance_url',          label: 'Instance URL',            hint: 'https://mycompany.service-now.com' },
@@ -42,6 +43,7 @@ const CRED_FIELDS: Record<string, CredField[]> = {
     { key: 'kb_category_sys_id',    label: 'Category Sys ID',         hint: 'optional' },
     { key: 'external_id_field',     label: 'External ID Field',       defaultVal: 'u_external_id' },
     { key: 'api_key',               label: 'Heretto Deploy API Key',  inputType: 'password' },
+    { key: 'base_url',              label: 'Deploy API Base URL',     hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
   ],
   zendesk: [
     { key: 'subdomain',     label: 'Subdomain',             hint: 'mycompany (not the full URL)' },
@@ -49,6 +51,7 @@ const CRED_FIELDS: Record<string, CredField[]> = {
     { key: 'section_id',    label: 'Section ID',            hint: 'Help Center section to publish into' },
     { key: 'locale',        label: 'Locale',                defaultVal: 'en-us' },
     { key: 'api_key',       label: 'Heretto Deploy API Key', inputType: 'password' },
+    { key: 'base_url',      label: 'Deploy API Base URL',   hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
   ],
 };
 
