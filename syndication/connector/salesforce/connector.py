@@ -38,14 +38,12 @@ _REQUIRED_MAPPING_KEYS = [
 class SalesforceConnector(ITargetConnector):
     """Target connector for Salesforce Knowledge.
 
-    Args:
-        instance_url:       ``https://{myorg}.my.salesforce.com``
-        api_version:        Salesforce API version, e.g. ``"60.0"``.
-        access_token:       OAuth2 / JWT Bearer access token.
-        knowledge_type:     Knowledge article type object API name,
-                            e.g. ``"Knowledge__kav"``.
-        external_id_field:  External-ID field API name for upsert idempotency,
-                            e.g. ``"ExternalId__c"``.
+    Supports two auth modes:
+    - Static token: pass ``access_token`` directly (backward-compat, no refresh).
+    - OAuth 2.0 username-password flow: pass ``client_id``, ``client_secret``,
+      ``username``, ``password`` (password + security token concatenated).
+      The connector acquires and caches the token on first use and retries
+      once on 401.
     """
 
     connector_id = "salesforce"
@@ -53,28 +51,50 @@ class SalesforceConnector(ITargetConnector):
     def __init__(
         self,
         instance_url: str = "",
-        api_version: str = "60.0",
+        api_version: str = "65.0",
         access_token: str = "",
+        client_id: str = "",
+        client_secret: str = "",
+        username: str = "",
+        password: str = "",
         knowledge_type: str = "Knowledge__kav",
-        external_id_field: str = "ExternalId__c",
+        external_id_field: str = "Heretto_UUID__c",
     ) -> None:
         self._instance_url = instance_url.rstrip("/")
         self._api_version = api_version
-        self._access_token = access_token
+        self._static_token = access_token
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._username = username
+        self._password = password
         self._kav_type = knowledge_type
         self._ext_field = external_id_field
+        self._cached_token: str | None = None
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _base_url(self) -> str:
         return f"{self._instance_url}/services/data/v{self._api_version}"
 
-    def _headers(self) -> dict[str, str]:
-        return {
-            "Authorization": f"Bearer {self._access_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
+    async def _ensure_token(self) -> str:
+        if self._static_token:
+            return self._static_token
+        if self._cached_token:
+            return self._cached_token
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{self._instance_url}/services/oauth2/token",
+                data={
+                    "grant_type": "password",
+                    "client_id": self._client_id,
+                    "client_secret": self._client_secret,
+                    "username": self._username,
+                    "password": self._password,
+                },
+            )
+            resp.raise_for_status()
+        self._cached_token = resp.json()["access_token"]
+        return self._cached_token
 
     async def _request(
         self,
@@ -82,10 +102,25 @@ class SalesforceConnector(ITargetConnector):
         url: str,
         **kwargs: Any,
     ) -> httpx.Response:
-        async with httpx.AsyncClient(headers=self._headers()) as client:
-            resp = await client.request(method, url, **kwargs)
-            resp.raise_for_status()
-            return resp
+        token = await self._ensure_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        async with httpx.AsyncClient() as client:
+            resp = await client.request(method, url, headers=headers, **kwargs)
+
+        if resp.status_code == 401 and not self._static_token:
+            # Cached OAuth token expired — clear and retry once
+            self._cached_token = None
+            token = await self._ensure_token()
+            headers["Authorization"] = f"Bearer {token}"
+            async with httpx.AsyncClient() as client:
+                resp = await client.request(method, url, headers=headers, **kwargs)
+
+        resp.raise_for_status()
+        return resp
 
     # ── ITargetConnector ──────────────────────────────────────────────────────
 

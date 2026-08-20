@@ -100,10 +100,14 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
         creds = _load_creds(cfg.credential_id, session_factory)
         return SalesforceConnector(
             instance_url=creds.get("instance_url", ""),
-            api_version=creds.get("api_version", "60.0"),
+            api_version=creds.get("api_version", "65.0"),
             access_token=creds.get("access_token", ""),
+            client_id=creds.get("client_id", ""),
+            client_secret=creds.get("client_secret", ""),
+            username=creds.get("username", ""),
+            password=creds.get("password", ""),
             knowledge_type=creds.get("knowledge_type", "Knowledge__kav"),
-            external_id_field=creds.get("external_id_field", "ExternalId__c"),
+            external_id_field=creds.get("external_id_field", "Heretto_UUID__c"),
         )
 
     if cfg.connector_id == "servicenow":

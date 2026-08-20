@@ -20,7 +20,7 @@ from syndication.connector.salesforce.connector import SalesforceConnector
 from syndication.ir.types import IRPage
 
 SF_INSTANCE = "https://myorg.my.salesforce.com"
-API_VER = "60.0"
+API_VER = "65.0"
 BASE = f"{SF_INSTANCE}/services/data/v{API_VER}"
 ACCESS_TOKEN = "test-access-token-abc"
 KAV_TYPE = "Knowledge__kav"
@@ -58,6 +58,29 @@ def _conn() -> SalesforceConnector:
         access_token=ACCESS_TOKEN,
         knowledge_type=KAV_TYPE,
         external_id_field=EXT_FIELD,
+    )
+
+
+def _oauth_conn() -> SalesforceConnector:
+    return SalesforceConnector(
+        instance_url=SF_INSTANCE,
+        api_version=API_VER,
+        client_id="consumer_key_abc",
+        client_secret="consumer_secret_xyz",
+        username="admin@myorg.com",
+        password="MyPass123TokenABC",
+        knowledge_type=KAV_TYPE,
+        external_id_field=EXT_FIELD,
+    )
+
+
+TOKEN_URL = f"{SF_INSTANCE}/services/oauth2/token"
+OAUTH_TOKEN = "oauth_token_from_connected_app"
+
+
+def _mock_token(mock):
+    return mock.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": OAUTH_TOKEN, "instance_url": SF_INSTANCE})
     )
 
 
@@ -488,3 +511,71 @@ class TestDeferredLinkFixup:
         assert n == 0
         assert not patch_route.called
         assert n >= 0
+
+
+# ── OAuth token acquisition ───────────────────────────────────────────────────
+
+class TestOAuthTokenAcquisition:
+    """Connector obtains and caches a token via the username-password OAuth flow."""
+
+    async def test_token_acquired_before_api_call(self):
+        conn = _oauth_conn()
+        with respx.mock() as mock:
+            token_route = _mock_token(mock)
+            mock.get(f"{BASE}/query").mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            )
+            await conn.upsert_article(_make_ir_page(), FIELD_MAP)
+
+        assert token_route.called
+
+    async def test_acquired_token_sent_as_bearer(self):
+        conn = _oauth_conn()
+        with respx.mock() as mock:
+            _mock_token(mock)
+            query_route = mock.get(f"{BASE}/query").mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            )
+            await conn.upsert_article(_make_ir_page(), FIELD_MAP)
+
+        auth = query_route.calls.last.request.headers.get("Authorization", "")
+        assert f"Bearer {OAUTH_TOKEN}" in auth
+
+    async def test_token_cached_across_calls(self):
+        conn = _oauth_conn()
+        with respx.mock() as mock:
+            token_route = _mock_token(mock)
+            mock.get(f"{BASE}/query").mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            )
+            await conn.upsert_article(_make_ir_page(), FIELD_MAP)
+            await conn.upsert_article(_make_ir_page(), FIELD_MAP)
+
+        assert token_route.call_count == 1
+
+    async def test_token_refreshed_on_401(self):
+        conn = _oauth_conn()
+        conn._cached_token = "stale-token"
+        with respx.mock() as mock:
+            token_route = _mock_token(mock)
+            # First SOQL call returns 401 (stale token), second succeeds after refresh
+            mock.get(f"{BASE}/query").mock(side_effect=[
+                httpx.Response(401),
+                httpx.Response(200, json={"records": []}),
+            ])
+            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
+                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            )
+            result = await conn.upsert_article(_make_ir_page(), FIELD_MAP)
+
+        assert token_route.called
+        assert result.target_article_id == "ka01NEW"

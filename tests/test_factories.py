@@ -154,7 +154,7 @@ class TestBuildConnector:
     def test_salesforce_uses_access_token_from_creds(self):
         cfg = _make_cfg(connector_id="salesforce")
         conn = self._call(cfg, creds={**SF_CREDS, "access_token": "tok-xyz"})
-        assert conn._access_token == "tok-xyz"
+        assert conn._static_token == "tok-xyz"
 
     def test_salesforce_uses_api_version_from_creds(self):
         cfg = _make_cfg(connector_id="salesforce")
