@@ -24,7 +24,7 @@ def _make_cfg(**overrides) -> MagicMock:
     cfg = MagicMock()
     cfg.org_id = "org-001"
     cfg.deployment_id = "dep-abc"
-    cfg.credential_id = "cred-111"
+    cfg.credential_id = "00000000-0000-0000-0000-000000000111"
     cfg.adapter_id = "deploy"
     cfg.connector_id = "salesforce"
     for k, v in overrides.items():

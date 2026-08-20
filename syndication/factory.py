@@ -7,6 +7,8 @@ testable without importing the full FastAPI application.
 """
 from __future__ import annotations
 
+import uuid as _uuid
+
 from hop_core.core.security import decrypt_credentials
 from hop_core.models.credential import Credential
 from hop_core.models.enums import CredentialTypeRegistry
@@ -41,7 +43,7 @@ def _load_creds(credential_id: str | None, session_factory) -> dict:
             "associate a credential before running this sync."
         )
     with session_factory() as db:
-        cred = db.get(Credential, credential_id)
+        cred = db.get(Credential, _uuid.UUID(credential_id))
         if cred is None:
             raise ValueError(
                 f"Credential {credential_id!r} not found. "
