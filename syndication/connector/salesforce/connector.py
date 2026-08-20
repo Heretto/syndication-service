@@ -12,8 +12,11 @@ The ``mapping`` parameter in ``upsert_article`` carries only the field-map:
 from __future__ import annotations
 
 import base64
+import logging
 import re
 from typing import Any
+
+log = logging.getLogger(__name__)
 
 import httpx
 from lxml import html as lhtml
@@ -111,6 +114,7 @@ class SalesforceConnector(ITargetConnector):
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
+        log.info("SF %s %s", method, url)
         async with httpx.AsyncClient() as client:
             resp = await client.request(method, url, headers=headers, **kwargs)
 
@@ -232,8 +236,10 @@ class SalesforceConnector(ITargetConnector):
         if records:
             rec = records[0]
             article_id = rec["Id"]
+            publish_status = rec.get("PublishStatus", "")
+            log.info("SF existing article %s PublishStatus=%r", article_id, publish_status)
 
-            if rec.get("PublishStatus") == "Online":
+            if publish_status == "Online":
                 # Create an edit draft from the published version before patching
                 edit_resp = await self._request(
                     "POST",
@@ -249,13 +255,23 @@ class SalesforceConnector(ITargetConnector):
             )
             return UpsertResult(target_article_id=article_id, created=False)
         else:
-            # New article: Lightning Knowledge requires creation via
-            # knowledgeManagement/articleVersions (no masterVersionId = new article).
+            # New article: use the Lightning Experience UI API.
+            # sObject POST and Knowledge Management POST endpoints all return 405
+            # for Knowledge in Lightning Knowledge orgs. The UI API is the correct
+            # programmatic surface for creating new articles.
             slug = _slugify(ir.title) or ir.uuid.replace("-", "")
+            ui_api_url = f"{self._instance_url}/services/data/v{self._api_version}/ui-api/records"
             create_resp = await self._request(
                 "POST",
-                f"{base}/knowledgeManagement/articleVersions",
-                json={"title": ir.title, "urlName": slug},
+                ui_api_url,
+                json={
+                    "apiName": self._kav_type,
+                    "fields": {
+                        "Title": ir.title,
+                        "UrlName": slug,
+                        "Language": "en_US",
+                    },
+                },
             )
             kav_id = create_resp.json()["id"]
 
@@ -270,10 +286,15 @@ class SalesforceConnector(ITargetConnector):
             return UpsertResult(target_article_id=kav_id, created=True)
 
     async def publish_article(self, target_article_id: str) -> None:
-        """Publish a Knowledge article via the Knowledge Management API."""
-        base = self._base_url()
-        url = f"{base}/knowledgeManagement/articleVersions/masterVersions/{target_article_id}"
-        await self._request("POST", url, json={})
+        """Publish a Knowledge article via the Lightning Knowledge standard action."""
+        # POST /masterVersions/{id} is a Classic Knowledge API (405 in Lightning).
+        # Lightning Knowledge requires the invocable action endpoint instead.
+        url = f"{self._instance_url}/services/data/v{self._api_version}/actions/standard/publishKnowledgeArticles"
+        await self._request(
+            "POST",
+            url,
+            json={"inputs": [{"articleVersionIdList": [target_article_id], "pubAction": "Publish"}]},
+        )
 
     async def archive_article(self, target_article_id: str) -> None:
         """Archive (delete draft) a Knowledge article."""

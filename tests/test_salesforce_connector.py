@@ -187,10 +187,10 @@ class TestUpsertArticle:
 
     # ── create (no existing record) ───────────────────────────────────────────
 
-    KAV_MGMT_URL = f"{BASE}/knowledgeManagement/articleVersions"
+    KAV_MGMT_URL = f"{BASE}/ui-api/records"
 
     def _mock_create(self, mock, kav_id="ka01NEW"):
-        """Mock the full create flow: SOQL miss, articleVersions POST, KAV PATCH."""
+        """Mock the full create flow: SOQL miss, articles POST, KAV PATCH."""
         mock.get(self._query_url()).mock(
             return_value=httpx.Response(200, json={"records": []})
         )
@@ -361,15 +361,14 @@ class TestUpsertArticle:
 # ── publish_article ───────────────────────────────────────────────────────────
 
 class TestPublishArticle:
-    def _pub_url(self, art_id: str) -> str:
-        return f"{BASE}/knowledgeManagement/articleVersions/masterVersions/{art_id}"
+    PUB_ACTION_URL = f"{BASE}/actions/standard/publishKnowledgeArticles"
 
     async def test_publish_makes_post_request(self):
         conn = _conn()
         art_id = "ka01000000001AAA"
         with respx.mock() as mock:
-            route = mock.post(self._pub_url(art_id)).mock(
-                return_value=httpx.Response(200)
+            route = mock.post(self.PUB_ACTION_URL).mock(
+                return_value=httpx.Response(200, json=[{"isSuccess": True}])
             )
             await conn.publish_article(art_id)
 
@@ -379,8 +378,8 @@ class TestPublishArticle:
         conn = _conn()
         art_id = "ka01AAA"
         with respx.mock() as mock:
-            route = mock.post(self._pub_url(art_id)).mock(
-                return_value=httpx.Response(200)
+            route = mock.post(self.PUB_ACTION_URL).mock(
+                return_value=httpx.Response(200, json=[{"isSuccess": True}])
             )
             await conn.publish_article(art_id)
 
@@ -532,7 +531,7 @@ class TestOAuthTokenAcquisition:
         mock.get(f"{BASE}/query").mock(
             return_value=httpx.Response(200, json={"records": []})
         )
-        mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+        mock.post(f"{BASE}/ui-api/records").mock(
             return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
         )
         mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
@@ -555,7 +554,7 @@ class TestOAuthTokenAcquisition:
             mock.get(f"{BASE}/query").mock(
                 return_value=httpx.Response(200, json={"records": []})
             )
-            mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+            mock.post(f"{BASE}/ui-api/records").mock(
                 return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             patch_route = mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
@@ -573,7 +572,7 @@ class TestOAuthTokenAcquisition:
             mock.get(f"{BASE}/query").mock(
                 return_value=httpx.Response(200, json={"records": []})
             )
-            mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+            mock.post(f"{BASE}/ui-api/records").mock(
                 side_effect=[
                     httpx.Response(201, json={"id": "ka01NEW", "success": True}),
                     httpx.Response(201, json={"id": "ka02NEW", "success": True}),
@@ -596,7 +595,7 @@ class TestOAuthTokenAcquisition:
                 httpx.Response(401),
                 httpx.Response(200, json={"records": []}),
             ])
-            mock.post(f"{BASE}/knowledgeManagement/articleVersions").mock(
+            mock.post(f"{BASE}/ui-api/records").mock(
                 return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
             )
             mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(

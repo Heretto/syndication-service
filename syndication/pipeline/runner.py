@@ -7,7 +7,10 @@ etc.) between runs.  This separation makes the pipeline easy to unit-test.
 from __future__ import annotations
 
 import dataclasses
+import logging
 from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 from syndication.connector.interface import ITargetConnector, UpsertResult
 from syndication.ir.types import IRPage
@@ -90,7 +93,10 @@ class SyncPipeline:
 
         for page in sanitised_pages:
             result = await self._connector.upsert_article(page, self._mapping)
-            await self._connector.publish_article(result.target_article_id)
+            try:
+                await self._connector.publish_article(result.target_article_id)
+            except Exception as exc:
+                log.warning("publish_article failed for %s (article left as draft): %s", result.target_article_id, exc)
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
 

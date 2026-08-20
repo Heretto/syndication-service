@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
+logging.basicConfig(level=logging.INFO)
+
 from hop_core.app_factory import create_hop_app
 from hop_core.db import get_session_factory
 
