@@ -93,10 +93,11 @@ class SyncPipeline:
 
         for page in sanitised_pages:
             result = await self._connector.upsert_article(page, self._mapping)
-            try:
-                await self._connector.publish_article(result.target_article_id)
-            except Exception as exc:
-                log.warning("publish_article failed for %s (article left as draft): %s", result.target_article_id, exc)
+            if not result.update_skipped:
+                try:
+                    await self._connector.publish_article(result.target_article_id, was_online=result.was_online)
+                except Exception as exc:
+                    log.warning("publish_article failed for %s: %s", result.target_article_id, exc)
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
 

@@ -25,8 +25,10 @@ class UpsertResult:
     """Result of a single ``upsert_article`` call."""
 
     target_article_id: str
-    created: bool           # True = new article, False = existing article updated
-    url: str | None = None  # canonical URL of the article in the target system
+    created: bool              # True = new article, False = existing article updated
+    url: str | None = None     # canonical URL of the article in the target system
+    was_online: bool = False   # True = article was already Published when upserted
+    update_skipped: bool = False  # True = Online article could not be updated (API limitation)
 
 
 class ITargetConnector(ABC):
@@ -85,7 +87,7 @@ class ITargetConnector(ABC):
         """
 
     @abstractmethod
-    async def publish_article(self, target_article_id: str) -> None:
+    async def publish_article(self, target_article_id: str, was_online: bool = False) -> None:
         """Publish a previously upserted article so it is visible to end users."""
 
     @abstractmethod

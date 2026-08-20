@@ -240,20 +240,42 @@ class SalesforceConnector(ITargetConnector):
             log.info("SF existing article %s PublishStatus=%r", article_id, publish_status)
 
             if publish_status == "Online":
-                # Create an edit draft from the published version before patching
-                edit_resp = await self._request(
-                    "POST",
-                    f"{base}/knowledgeManagement/articleVersions",
-                    json={"masterVersionId": article_id},
-                )
-                article_id = edit_resp.json()["id"]
+                # Create an edit draft so we can update and re-publish.
+                # POST /knowledgeManagement/articleVersions may return 405 in some
+                # Lightning Knowledge orgs (dev org API limitation); if so, skip the
+                # content update and leave the published article untouched.
+                try:
+                    edit_resp = await self._request(
+                        "POST",
+                        f"{base}/knowledgeManagement/articleVersions",
+                        json={"masterVersionId": article_id},
+                    )
+                    article_id = edit_resp.json()["id"]
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 405:
+                        log.warning(
+                            "Cannot create edit draft for Online article %s "
+                            "(API limitation — article not updated this run)",
+                            article_id,
+                        )
+                        return UpsertResult(
+                            target_article_id=article_id,
+                            created=False,
+                            was_online=True,
+                            update_skipped=True,
+                        )
+                    raise
 
             await self._request(
                 "PATCH",
                 f"{base}/sobjects/{self._kav_type}/{article_id}",
                 json=payload,
             )
-            return UpsertResult(target_article_id=article_id, created=False)
+            return UpsertResult(
+                target_article_id=article_id,
+                created=False,
+                was_online=publish_status == "Online",
+            )
         else:
             # New article: use the Lightning Experience UI API.
             # sObject POST and Knowledge Management POST endpoints all return 405
@@ -285,26 +307,27 @@ class SalesforceConnector(ITargetConnector):
             )
             return UpsertResult(target_article_id=kav_id, created=True)
 
-    async def publish_article(self, target_article_id: str) -> None:
-        """Publish a Knowledge article via the Lightning Knowledge standard action."""
-        base = self._base_url()
-        # Resolve the master KnowledgeArticleId from the draft KAV version ID.
-        # The publishKnowledgeArticles action requires the KnowledgeArticleId
-        # (master/parent ID), NOT the KAV version ID.
-        kav_resp = await self._request(
-            "GET",
-            f"{base}/sobjects/{self._kav_type}/{target_article_id}",
-            params={"fields": "KnowledgeArticleId"},
-        )
-        ka_id = kav_resp.json().get("KnowledgeArticleId") or target_article_id
-        log.info("SF publish: kavId=%s → kaId=%s", target_article_id, ka_id)
+    async def publish_article(self, target_article_id: str, was_online: bool = False) -> None:
+        """Publish a Knowledge article via the Lightning Knowledge standard action.
 
+        articleVersionIdList takes the KAV version Id (ka0... prefix).
+        was_online=True uses PUBLISH_ARTICLE_NEW_VERSION for re-publishing an
+        article that was already Online when we patched it.
+        """
+        pub_action = "PUBLISH_ARTICLE_NEW_VERSION" if was_online else "PUBLISH_ARTICLE"
         url = f"{self._instance_url}/services/data/v{self._api_version}/actions/standard/publishKnowledgeArticles"
-        await self._request(
+        resp = await self._request(
             "POST",
             url,
-            json={"inputs": [{"articleVersionIdList": [ka_id], "pubAction": "PUBLISH_ARTICLE"}]},
+            json={"inputs": [{"articleVersionIdList": [target_article_id], "pubAction": pub_action}]},
         )
+        result = resp.json()
+        if result and not result[0].get("isSuccess"):
+            raise httpx.HTTPStatusError(
+                f"publishKnowledgeArticles failed: {result[0].get('outputValues')}",
+                request=resp.request,
+                response=resp,
+            )
 
     async def archive_article(self, target_article_id: str) -> None:
         """Archive (delete draft) a Knowledge article."""

@@ -283,42 +283,44 @@ class TestUpsertArticle:
 
     # ── update — existing Online (published) article ───────────────────────────
 
-    async def test_update_online_creates_edit_draft_first(self):
+    async def test_update_online_creates_edit_draft_and_patches_it(self):
+        """Online article: create edit draft, then PATCH the draft."""
         conn = _conn()
-        page = _make_ir_page()
+        page = _make_ir_page(title="New Version Title")
         edit_url = f"{BASE}/knowledgeManagement/articleVersions"
         with respx.mock() as mock:
             self._mock_query(mock, [{"Id": "ka01PUB", "PublishStatus": "Online"}])
             edit_route = mock.post(edit_url).mock(
                 return_value=httpx.Response(201, json={"id": "ka01EDT", "success": True})
             )
-            mock.patch(self._sobject_url("ka01EDT")).mock(
+            patch_route = mock.patch(self._sobject_url("ka01EDT")).mock(
                 return_value=httpx.Response(204)
             )
             result = await conn.upsert_article(page, FIELD_MAP)
 
         assert edit_route.called
-        edit_payload = json.loads(edit_route.calls.last.request.content)
-        assert edit_payload.get("masterVersionId") == "ka01PUB"
+        assert json.loads(edit_route.calls.last.request.content)["masterVersionId"] == "ka01PUB"
+        assert patch_route.called
+        assert json.loads(patch_route.calls.last.request.content).get("Title") == "New Version Title"
         assert result.target_article_id == "ka01EDT"
-        assert result.created is False
+        assert result.was_online is True
+        assert result.update_skipped is False
 
-    async def test_update_online_patches_the_edit_draft(self):
+    async def test_update_online_skips_gracefully_on_405(self):
+        """If edit-draft creation returns 405, return update_skipped=True."""
         conn = _conn()
-        page = _make_ir_page(title="New Version Title")
+        page = _make_ir_page()
         edit_url = f"{BASE}/knowledgeManagement/articleVersions"
         with respx.mock() as mock:
             self._mock_query(mock, [{"Id": "ka01PUB", "PublishStatus": "Online"}])
             mock.post(edit_url).mock(
-                return_value=httpx.Response(201, json={"id": "ka01EDT", "success": True})
+                return_value=httpx.Response(405, json=[{"errorCode": "METHOD_NOT_ALLOWED"}])
             )
-            patch_route = mock.patch(self._sobject_url("ka01EDT")).mock(
-                return_value=httpx.Response(204)
-            )
-            await conn.upsert_article(page, FIELD_MAP)
+            result = await conn.upsert_article(page, FIELD_MAP)
 
-        payload = json.loads(patch_route.calls.last.request.content)
-        assert payload.get("Title") == "New Version Title"
+        assert result.target_article_id == "ka01PUB"
+        assert result.was_online is True
+        assert result.update_skipped is True
 
     # ── auth ─────────────────────────────────────────────────────────────────
 
@@ -364,49 +366,42 @@ class TestPublishArticle:
     PUB_ACTION_URL = f"{BASE}/actions/standard/publishKnowledgeArticles"
 
     KAV_ID = "ka01000000001AAA"
-    KA_ID = "kA0000001MASTER"
 
-    def _mock_kav_lookup(self, mock, kav_id, ka_id):
-        """Mock the GET /sobjects/{kav_type}/{kav_id}?fields=KnowledgeArticleId lookup."""
-        mock.get(f"{BASE}/sobjects/{KAV_TYPE}/{kav_id}").mock(
-            return_value=httpx.Response(200, json={"Id": kav_id, "KnowledgeArticleId": ka_id})
+    def _pub_mock(self, mock, success=True):
+        return mock.post(self.PUB_ACTION_URL).mock(
+            return_value=httpx.Response(200, json=[{"isSuccess": success, "outputValues": {self.KAV_ID: "Success" if success else "Invalid ID."}}])
         )
 
     async def test_publish_makes_post_request(self):
         conn = _conn()
         with respx.mock() as mock:
-            self._mock_kav_lookup(mock, self.KAV_ID, self.KA_ID)
-            route = mock.post(self.PUB_ACTION_URL).mock(
-                return_value=httpx.Response(200, json=[{"isSuccess": True}])
-            )
+            route = self._pub_mock(mock)
             await conn.publish_article(self.KAV_ID)
-
         assert route.called
 
-    async def test_publish_uses_publish_article_action(self):
+    async def test_publish_uses_kav_version_id(self):
         conn = _conn()
         with respx.mock() as mock:
-            self._mock_kav_lookup(mock, self.KAV_ID, self.KA_ID)
-            route = mock.post(self.PUB_ACTION_URL).mock(
-                return_value=httpx.Response(200, json=[{"isSuccess": True}])
-            )
+            route = self._pub_mock(mock)
             await conn.publish_article(self.KAV_ID)
-
         body = json.loads(route.calls.last.request.content)
         assert body["inputs"][0]["pubAction"] == "PUBLISH_ARTICLE"
-        assert self.KA_ID in body["inputs"][0]["articleVersionIdList"]
+        assert self.KAV_ID in body["inputs"][0]["articleVersionIdList"]
 
     async def test_publish_sends_bearer_auth(self):
         conn = _conn()
         with respx.mock() as mock:
-            self._mock_kav_lookup(mock, self.KAV_ID, self.KA_ID)
-            route = mock.post(self.PUB_ACTION_URL).mock(
-                return_value=httpx.Response(200, json=[{"isSuccess": True}])
-            )
+            route = self._pub_mock(mock)
             await conn.publish_article(self.KAV_ID)
-
         request = route.calls.last.request
         assert f"Bearer {ACCESS_TOKEN}" in request.headers.get("Authorization", "")
+
+    async def test_publish_raises_on_issuccess_false(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            self._pub_mock(mock, success=False)
+            with pytest.raises(httpx.HTTPStatusError):
+                await conn.publish_article(self.KAV_ID)
 
 
 # ── archive_article ───────────────────────────────────────────────────────────
