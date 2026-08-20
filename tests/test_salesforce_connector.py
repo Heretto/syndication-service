@@ -187,14 +187,26 @@ class TestUpsertArticle:
 
     # ── create (no existing record) ───────────────────────────────────────────
 
+    KA_URL = f"{BASE}/sobjects/Knowledge__ka"
+
+    def _mock_create(self, mock, ka_id="ka01KA", kav_id="ka01NEW"):
+        """Mock the full create flow: SOQL miss, KA POST, KAV lookup, KAV PATCH."""
+        mock.get(self._query_url()).mock(side_effect=[
+            httpx.Response(200, json={"records": []}),               # initial SOQL: no match
+            httpx.Response(200, json={"records": [{"Id": kav_id}]}), # KAV lookup after KA create
+        ])
+        mock.post(self.KA_URL).mock(
+            return_value=httpx.Response(201, json={"id": ka_id, "success": True})
+        )
+        return mock.patch(self._sobject_url(kav_id)).mock(
+            return_value=httpx.Response(204)
+        )
+
     async def test_create_returns_upsert_result(self):
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            self._mock_query(mock, [])
-            mock.post(self._sobject_url()).mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            self._mock_create(mock)
             result = await conn.upsert_article(page, FIELD_MAP)
 
         assert isinstance(result, UpsertResult)
@@ -205,40 +217,41 @@ class TestUpsertArticle:
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            self._mock_query(mock, [])
-            post_route = mock.post(self._sobject_url()).mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            patch_route = self._mock_create(mock)
             await conn.upsert_article(page, FIELD_MAP)
 
-        payload = json.loads(post_route.calls.last.request.content)
+        payload = json.loads(patch_route.calls.last.request.content)
         assert payload.get(EXT_FIELD) == page.uuid
 
     async def test_create_sends_mapped_title(self):
         conn = _conn()
         page = _make_ir_page(title="My Article Title")
         with respx.mock() as mock:
-            self._mock_query(mock, [])
-            post_route = mock.post(self._sobject_url()).mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            patch_route = self._mock_create(mock)
             await conn.upsert_article(page, FIELD_MAP)
 
-        payload = json.loads(post_route.calls.last.request.content)
+        payload = json.loads(patch_route.calls.last.request.content)
         assert payload.get("Title") == "My Article Title"
 
     async def test_create_sends_mapped_html_body(self):
         conn = _conn()
         page = _make_ir_page(html_body="<p>Body text</p>")
         with respx.mock() as mock:
-            self._mock_query(mock, [])
-            post_route = mock.post(self._sobject_url()).mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            patch_route = self._mock_create(mock)
             await conn.upsert_article(page, FIELD_MAP)
 
-        payload = json.loads(post_route.calls.last.request.content)
+        payload = json.loads(patch_route.calls.last.request.content)
         assert payload.get("Answer__c") == "<p>Body text</p>"
+
+    async def test_create_auto_generates_url_name(self):
+        conn = _conn()
+        page = _make_ir_page(title="My Article Title")
+        with respx.mock() as mock:
+            patch_route = self._mock_create(mock)
+            await conn.upsert_article(page, FIELD_MAP)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert payload.get("UrlName") == "my-article-title"
 
     # ── update — existing Draft ───────────────────────────────────────────────
 
@@ -314,14 +327,11 @@ class TestUpsertArticle:
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            query_route = mock.get(self._query_url()).mock(
-                return_value=httpx.Response(200, json={"records": []})
-            )
-            mock.post(self._sobject_url()).mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            query_route = self._mock_create(mock)
+            # Grab the SOQL query call (first GET /query call)
             await conn.upsert_article(page, FIELD_MAP)
 
+        # Bearer token should appear on every request — check the PATCH (query_route)
         request = query_route.calls.last.request
         assert f"Bearer {ACCESS_TOKEN}" in request.headers.get("Authorization", "")
 
@@ -339,8 +349,10 @@ class TestUpsertArticle:
         conn = _conn()
         page = _make_ir_page()
         with respx.mock() as mock:
-            self._mock_query(mock, [])
-            mock.post(self._sobject_url()).mock(
+            mock.get(self._query_url()).mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(self.KA_URL).mock(
                 return_value=httpx.Response(400, json=[{"message": "bad field"}])
             )
             with pytest.raises(httpx.HTTPStatusError):
@@ -516,16 +528,24 @@ class TestDeferredLinkFixup:
 class TestOAuthTokenAcquisition:
     """Connector obtains and caches a token via the username-password OAuth flow."""
 
+    def _mock_full_create(self, mock):
+        """Mock SOQL miss + 3-step KA/KAV creation for OAuth tests."""
+        mock.get(f"{BASE}/query").mock(side_effect=[
+            httpx.Response(200, json={"records": []}),          # initial SOQL miss
+            httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),  # KAV lookup
+        ])
+        mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
+            return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
+        )
+        mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
+            return_value=httpx.Response(204)
+        )
+
     async def test_token_acquired_before_api_call(self):
         conn = _oauth_conn()
         with respx.mock() as mock:
             token_route = _mock_token(mock)
-            mock.get(f"{BASE}/query").mock(
-                return_value=httpx.Response(200, json={"records": []})
-            )
-            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            self._mock_full_create(mock)
             await conn.upsert_article(_make_ir_page(), FIELD_MAP)
 
         assert token_route.called
@@ -534,27 +554,37 @@ class TestOAuthTokenAcquisition:
         conn = _oauth_conn()
         with respx.mock() as mock:
             _mock_token(mock)
-            query_route = mock.get(f"{BASE}/query").mock(
-                return_value=httpx.Response(200, json={"records": []})
+            patch_route = mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
+                return_value=httpx.Response(204)
             )
-            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            mock.get(f"{BASE}/query").mock(side_effect=[
+                httpx.Response(200, json={"records": []}),
+                httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),
+            ])
+            mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
+                return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
             )
             await conn.upsert_article(_make_ir_page(), FIELD_MAP)
 
-        auth = query_route.calls.last.request.headers.get("Authorization", "")
+        auth = patch_route.calls.last.request.headers.get("Authorization", "")
         assert f"Bearer {OAUTH_TOKEN}" in auth
 
     async def test_token_cached_across_calls(self):
         conn = _oauth_conn()
         with respx.mock() as mock:
             token_route = _mock_token(mock)
-            mock.get(f"{BASE}/query").mock(
-                return_value=httpx.Response(200, json={"records": []})
+            # Two full create flows
+            mock.get(f"{BASE}/query").mock(side_effect=[
+                httpx.Response(200, json={"records": []}),
+                httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),
+                httpx.Response(200, json={"records": []}),
+                httpx.Response(200, json={"records": [{"Id": "ka02NEW"}]}),
+            ])
+            mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
+                return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
             )
-            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
-            )
+            mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(return_value=httpx.Response(204))
+            mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka02NEW").mock(return_value=httpx.Response(204))
             await conn.upsert_article(_make_ir_page(), FIELD_MAP)
             await conn.upsert_article(_make_ir_page(), FIELD_MAP)
 
@@ -565,13 +595,17 @@ class TestOAuthTokenAcquisition:
         conn._cached_token = "stale-token"
         with respx.mock() as mock:
             token_route = _mock_token(mock)
-            # First SOQL call returns 401 (stale token), second succeeds after refresh
+            # First SOQL returns 401 (stale), retry returns empty, then KA create flow
             mock.get(f"{BASE}/query").mock(side_effect=[
                 httpx.Response(401),
                 httpx.Response(200, json={"records": []}),
+                httpx.Response(200, json={"records": [{"Id": "ka01NEW"}]}),
             ])
-            mock.post(f"{BASE}/sobjects/{KAV_TYPE}").mock(
-                return_value=httpx.Response(201, json={"id": "ka01NEW", "success": True})
+            mock.post(f"{BASE}/sobjects/Knowledge__ka").mock(
+                return_value=httpx.Response(201, json={"id": "ka01KA", "success": True})
+            )
+            mock.patch(f"{BASE}/sobjects/{KAV_TYPE}/ka01NEW").mock(
+                return_value=httpx.Response(204)
             )
             result = await conn.upsert_article(_make_ir_page(), FIELD_MAP)
 

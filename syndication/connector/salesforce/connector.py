@@ -249,17 +249,37 @@ class SalesforceConnector(ITargetConnector):
             )
             return UpsertResult(target_article_id=article_id, created=False)
         else:
-            # New article: stamp tracking field and auto-generate UrlName
+            # New article: Lightning Knowledge doesn't allow POST to KAV directly.
+            # Create the master KA record first; SF auto-creates the draft KAV.
+            ka_type = self._kav_type.replace("__kav", "__ka")
+            ka_resp = await self._request(
+                "POST",
+                f"{base}/sobjects/{ka_type}",
+                json={"Title": ir.title},
+            )
+            ka_id = ka_resp.json()["id"]
+
+            # Find the auto-created draft KAV
+            kav_soql = (
+                f"SELECT Id FROM {self._kav_type} "
+                f"WHERE KnowledgeArticleId = '{ka_id}' AND PublishStatus = 'Draft' LIMIT 1"
+            )
+            kav_resp = await self._request("GET", f"{base}/query", params={"q": kav_soql})
+            kav_records = kav_resp.json().get("records", [])
+            if not kav_records:
+                raise RuntimeError(f"No draft KAV found for new article KA={ka_id}")
+            kav_id = kav_records[0]["Id"]
+
+            # Stamp content, tracking field, and UrlName onto the draft KAV
             payload[self._ext_field] = ir.uuid
             if "UrlName" not in payload:
                 payload["UrlName"] = _slugify(ir.title) or ir.uuid.replace("-", "")
-            create_resp = await self._request(
-                "POST",
-                f"{base}/sobjects/{self._kav_type}",
+            await self._request(
+                "PATCH",
+                f"{base}/sobjects/{self._kav_type}/{kav_id}",
                 json=payload,
             )
-            article_id = create_resp.json()["id"]
-            return UpsertResult(target_article_id=article_id, created=True)
+            return UpsertResult(target_article_id=kav_id, created=True)
 
     async def publish_article(self, target_article_id: str) -> None:
         """Publish a Knowledge article via the Knowledge Management API."""
