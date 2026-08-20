@@ -363,25 +363,47 @@ class TestUpsertArticle:
 class TestPublishArticle:
     PUB_ACTION_URL = f"{BASE}/actions/standard/publishKnowledgeArticles"
 
+    KAV_ID = "ka01000000001AAA"
+    KA_ID = "kA0000001MASTER"
+
+    def _mock_kav_lookup(self, mock, kav_id, ka_id):
+        """Mock the GET /sobjects/{kav_type}/{kav_id}?fields=KnowledgeArticleId lookup."""
+        mock.get(f"{BASE}/sobjects/{KAV_TYPE}/{kav_id}").mock(
+            return_value=httpx.Response(200, json={"Id": kav_id, "KnowledgeArticleId": ka_id})
+        )
+
     async def test_publish_makes_post_request(self):
         conn = _conn()
-        art_id = "ka01000000001AAA"
         with respx.mock() as mock:
+            self._mock_kav_lookup(mock, self.KAV_ID, self.KA_ID)
             route = mock.post(self.PUB_ACTION_URL).mock(
                 return_value=httpx.Response(200, json=[{"isSuccess": True}])
             )
-            await conn.publish_article(art_id)
+            await conn.publish_article(self.KAV_ID)
 
         assert route.called
 
-    async def test_publish_sends_bearer_auth(self):
+    async def test_publish_uses_publish_article_action(self):
         conn = _conn()
-        art_id = "ka01AAA"
         with respx.mock() as mock:
+            self._mock_kav_lookup(mock, self.KAV_ID, self.KA_ID)
             route = mock.post(self.PUB_ACTION_URL).mock(
                 return_value=httpx.Response(200, json=[{"isSuccess": True}])
             )
-            await conn.publish_article(art_id)
+            await conn.publish_article(self.KAV_ID)
+
+        body = json.loads(route.calls.last.request.content)
+        assert body["inputs"][0]["pubAction"] == "PUBLISH_ARTICLE"
+        assert self.KA_ID in body["inputs"][0]["articleVersionIdList"]
+
+    async def test_publish_sends_bearer_auth(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            self._mock_kav_lookup(mock, self.KAV_ID, self.KA_ID)
+            route = mock.post(self.PUB_ACTION_URL).mock(
+                return_value=httpx.Response(200, json=[{"isSuccess": True}])
+            )
+            await conn.publish_article(self.KAV_ID)
 
         request = route.calls.last.request
         assert f"Bearer {ACCESS_TOKEN}" in request.headers.get("Authorization", "")

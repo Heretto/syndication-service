@@ -287,13 +287,23 @@ class SalesforceConnector(ITargetConnector):
 
     async def publish_article(self, target_article_id: str) -> None:
         """Publish a Knowledge article via the Lightning Knowledge standard action."""
-        # POST /masterVersions/{id} is a Classic Knowledge API (405 in Lightning).
-        # Lightning Knowledge requires the invocable action endpoint instead.
+        base = self._base_url()
+        # Resolve the master KnowledgeArticleId from the draft KAV version ID.
+        # The publishKnowledgeArticles action requires the KnowledgeArticleId
+        # (master/parent ID), NOT the KAV version ID.
+        kav_resp = await self._request(
+            "GET",
+            f"{base}/sobjects/{self._kav_type}/{target_article_id}",
+            params={"fields": "KnowledgeArticleId"},
+        )
+        ka_id = kav_resp.json().get("KnowledgeArticleId") or target_article_id
+        log.info("SF publish: kavId=%s → kaId=%s", target_article_id, ka_id)
+
         url = f"{self._instance_url}/services/data/v{self._api_version}/actions/standard/publishKnowledgeArticles"
         await self._request(
             "POST",
             url,
-            json={"inputs": [{"articleVersionIdList": [target_article_id], "pubAction": "Publish"}]},
+            json={"inputs": [{"articleVersionIdList": [ka_id], "pubAction": "PUBLISH_ARTICLE"}]},
         )
 
     async def archive_article(self, target_article_id: str) -> None:
