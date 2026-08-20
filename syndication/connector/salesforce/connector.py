@@ -12,6 +12,7 @@ The ``mapping`` parameter in ``upsert_article`` carries only the field-map:
 from __future__ import annotations
 
 import base64
+import re
 from typing import Any
 
 import httpx
@@ -24,6 +25,14 @@ from syndication.connector.interface import (
 )
 from syndication.connector.salesforce.sanitizer import sanitize_html as _sanitize
 from syndication.ir.types import IRPage
+
+def _slugify(text: str) -> str:
+    """Convert *text* to a URL-safe Salesforce UrlName (max 255 chars)."""
+    text = re.sub(r"[^\w\s-]", "", text.lower().strip())
+    text = re.sub(r"[\s_]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text[:255] or "article"
+
 
 _REQUIRED_MAPPING_KEYS = [
     "sf_instance_url",
@@ -113,7 +122,16 @@ class SalesforceConnector(ITargetConnector):
             async with httpx.AsyncClient() as client:
                 resp = await client.request(method, url, headers=headers, **kwargs)
 
-        resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                body = resp.json()
+            except Exception:
+                body = resp.text
+            raise httpx.HTTPStatusError(
+                f"{resp.status_code} {resp.reason_phrase} — {body}",
+                request=resp.request,
+                response=resp,
+            )
         return resp
 
     # ── ITargetConnector ──────────────────────────────────────────────────────
@@ -231,8 +249,10 @@ class SalesforceConnector(ITargetConnector):
             )
             return UpsertResult(target_article_id=article_id, created=False)
         else:
-            # New article: stamp our tracking field and create a draft
+            # New article: stamp tracking field and auto-generate UrlName
             payload[self._ext_field] = ir.uuid
+            if "UrlName" not in payload:
+                payload["UrlName"] = _slugify(ir.title) or ir.uuid.replace("-", "")
             create_resp = await self._request(
                 "POST",
                 f"{base}/sobjects/{self._kav_type}",
