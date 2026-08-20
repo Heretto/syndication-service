@@ -222,12 +222,16 @@ class SalesforceConnector(ITargetConnector):
         for ir_field, sf_field in mapping.items():
             value = getattr(ir, ir_field, None)
             if value is not None:
+                # Salesforce Rich Text Area fields cap at 32768 chars
+                if isinstance(value, str) and len(value) > 32000:
+                    value = value[:32000]
                 payload[sf_field] = value
 
         # 1. Query for any existing version by our tracking field
         soql = (
             f"SELECT Id, PublishStatus FROM {self._kav_type} "
             f"WHERE {self._ext_field} = '{ir.uuid}' "
+            f"AND PublishStatus IN ('Draft', 'Online') "
             f"ORDER BY LastModifiedDate DESC LIMIT 1"
         )
         q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
@@ -239,11 +243,11 @@ class SalesforceConnector(ITargetConnector):
             publish_status = rec.get("PublishStatus", "")
             log.info("SF existing article %s PublishStatus=%r", article_id, publish_status)
 
-            if publish_status == "Online":
+            if publish_status in ("Online", "Archived"):
                 # Create an edit draft so we can update and re-publish.
                 # POST /knowledgeManagement/articleVersions may return 405 in some
                 # Lightning Knowledge orgs (dev org API limitation); if so, skip the
-                # content update and leave the published article untouched.
+                # content update and leave the article untouched.
                 try:
                     edit_resp = await self._request(
                         "POST",
@@ -254,14 +258,15 @@ class SalesforceConnector(ITargetConnector):
                 except httpx.HTTPStatusError as exc:
                     if exc.response.status_code == 405:
                         log.warning(
-                            "Cannot create edit draft for Online article %s "
+                            "Cannot create edit draft for %s article %s "
                             "(API limitation — article not updated this run)",
+                            publish_status,
                             article_id,
                         )
                         return UpsertResult(
                             target_article_id=article_id,
                             created=False,
-                            was_online=True,
+                            was_online=publish_status == "Online",
                             update_skipped=True,
                         )
                     raise
@@ -281,7 +286,8 @@ class SalesforceConnector(ITargetConnector):
             # sObject POST and Knowledge Management POST endpoints all return 405
             # for Knowledge in Lightning Knowledge orgs. The UI API is the correct
             # programmatic surface for creating new articles.
-            slug = _slugify(ir.title) or ir.uuid.replace("-", "")
+            base_slug = _slugify(ir.title)
+            slug = f"{base_slug}-{ir.uuid[:8]}" if base_slug else ir.uuid.replace("-", "")
             ui_api_url = f"{self._instance_url}/services/data/v{self._api_version}/ui-api/records"
             create_resp = await self._request(
                 "POST",
