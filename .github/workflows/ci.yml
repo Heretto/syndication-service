@@ -14,6 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check out hop-core
+        uses: actions/checkout@v4
+        with:
+          repository: Heretto/hop-core
+          path: hop-core
+          token: ${{ secrets.HOP_CORE_TOKEN }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -21,8 +28,7 @@ jobs:
           cache: pip
 
       - name: Install hop-core
-        run: pip install --no-cache-dir ../hop-core
-        working-directory: syndication-service
+        run: pip install --no-cache-dir ./hop-core
 
       - name: Install syndication-service dependencies
         run: |
@@ -41,11 +47,9 @@ jobs:
             pytest-asyncio \
             anyio
           pip install --no-cache-dir -e .
-        working-directory: syndication-service
 
       - name: Run tests
         run: python -m pytest
-        working-directory: syndication-service
 
   build-frontend:
     name: Frontend build
@@ -59,12 +63,12 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: syndication-service/frontend/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
         run: npm ci
-        working-directory: syndication-service/frontend
+        working-directory: frontend
 
       - name: Build Angular app
         run: npx ng build --configuration=production
-        working-directory: syndication-service/frontend
+        working-directory: frontend
