@@ -250,7 +250,8 @@ class TestUpsertArticle:
             await conn.upsert_article(page, FIELD_MAP)
 
         payload = json.loads(patch_route.calls.last.request.content)
-        assert payload.get("UrlName") == "my-article-title"
+        # Slug includes first 8 chars of UUID to avoid UrlName collisions
+        assert payload.get("UrlName") == "my-article-title-9e6bc560"
 
     # ── update — existing Draft ───────────────────────────────────────────────
 
@@ -425,14 +426,15 @@ class TestUploadBinary:
     async def test_upload_returns_string_url(self):
         conn = _conn()
         with respx.mock() as mock:
+            # First GET: dedup check returns empty (no existing document)
+            # Second GET: fetch ContentDocumentId after upload
+            mock.get(f"{BASE}/query").mock(side_effect=[
+                httpx.Response(200, json={"records": []}),
+                httpx.Response(200, json={"records": [{"ContentDocumentId": "069bbb"}]}),
+            ])
             mock.post(f"{BASE}/sobjects/ContentVersion").mock(
                 return_value=httpx.Response(
                     201, json={"id": "068aaa", "success": True}
-                )
-            )
-            mock.get(f"{BASE}/query").mock(
-                return_value=httpx.Response(
-                    200, json={"records": [{"ContentDocumentId": "069bbb"}]}
                 )
             )
             url = await conn.upload_binary(
@@ -448,14 +450,14 @@ class TestUploadBinary:
     async def test_upload_sends_bearer_auth(self):
         conn = _conn()
         with respx.mock() as mock:
+            # First GET: dedup check returns empty; Second GET: fetch doc id
+            mock.get(f"{BASE}/query").mock(side_effect=[
+                httpx.Response(200, json={"records": []}),
+                httpx.Response(200, json={"records": [{"ContentDocumentId": "069bbb"}]}),
+            ])
             route = mock.post(f"{BASE}/sobjects/ContentVersion").mock(
                 return_value=httpx.Response(
                     201, json={"id": "068aaa", "success": True}
-                )
-            )
-            mock.get(f"{BASE}/query").mock(
-                return_value=httpx.Response(
-                    200, json={"records": [{"ContentDocumentId": "069bbb"}]}
                 )
             )
             await conn.upload_binary("uuid", b"data", "image/png", "f.png")
