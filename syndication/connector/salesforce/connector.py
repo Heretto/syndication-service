@@ -162,9 +162,21 @@ class SalesforceConnector(ITargetConnector):
         """Upload a binary file as a Salesforce ContentVersion.
 
         Returns the URL of the associated ContentDocument download endpoint.
+        If a ContentDocument with this filename already exists, returns its URL
+        without re-uploading.
         """
         base = self._base_url()
-        # 1. Create ContentVersion
+
+        # 1. Check for an existing ContentDocument by filename to avoid duplicates
+        check_q = f"SELECT ContentDocumentId FROM ContentVersion WHERE Title = '{filename}' LIMIT 1"
+        check_resp = await self._request("GET", f"{base}/query", params={"q": check_q})
+        existing = check_resp.json().get("records", [])
+        if existing:
+            doc_id = existing[0]["ContentDocumentId"]
+            log.info("Reusing existing ContentDocument %s for %s", doc_id, filename)
+            return f"{self._instance_url}/sfc/servlet.shepherd/document/download/{doc_id}"
+
+        # 2. Create ContentVersion
         payload = {
             "Title": filename,
             "PathOnClient": filename,
@@ -174,11 +186,9 @@ class SalesforceConnector(ITargetConnector):
         resp = await self._request("POST", f"{base}/sobjects/ContentVersion", json=payload)
         version_id = resp.json()["id"]
 
-        # 2. Retrieve ContentDocumentId for the version
+        # 3. Retrieve ContentDocumentId for the version
         query = f"SELECT ContentDocumentId FROM ContentVersion WHERE Id = '{version_id}'"
-        q_resp = await self._request(
-            "GET", f"{base}/query", params={"q": query}
-        )
+        q_resp = await self._request("GET", f"{base}/query", params={"q": query})
         doc_id = q_resp.json()["records"][0]["ContentDocumentId"]
 
         return f"{self._instance_url}/sfc/servlet.shepherd/document/download/{doc_id}"

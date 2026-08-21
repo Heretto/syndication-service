@@ -8,9 +8,54 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import re
 from dataclasses import dataclass
 
+from lxml import html as lhtml
+
 log = logging.getLogger(__name__)
+
+
+def _extract_img_srcs(html: str) -> list[str]:
+    """Return all unique <img src> URLs found in *html*."""
+    if not html:
+        return []
+    doc = lhtml.fromstring(f"<div>{html}</div>")
+    seen: list[str] = []
+    for img in doc.iter("img"):
+        src = img.get("src", "")
+        if src and src not in seen:
+            seen.append(src)
+    return seen
+
+
+def _rewrite_img_srcs(html: str, url_map: dict[str, str]) -> str:
+    """Replace <img src> values according to *url_map*."""
+    if not html or not url_map:
+        return html
+    doc = lhtml.fromstring(f"<div>{html}</div>")
+    for img in doc.iter("img"):
+        src = img.get("src", "")
+        if src in url_map:
+            img.set("src", url_map[src])
+    return (doc.text or "") + "".join(
+        lhtml.tostring(child, encoding="unicode") for child in doc
+    )
+
+
+def _object_uuid_from_url(url: str) -> str:
+    """Extract the object UUID from a Deploy API object URL."""
+    m = re.search(r"/object/([^/?]+)", url)
+    return m.group(1) if m else url.split("/")[-1].split("?")[0]
+
+
+_MIME_TO_EXT: dict[str, str] = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/svg+xml": ".svg",
+    "image/webp": ".webp",
+}
 
 from syndication.connector.interface import ITargetConnector, UpsertResult
 from syndication.ir.types import IRPage
@@ -87,11 +132,34 @@ class SyncPipeline:
             clean_html = await self._connector.sanitize_html(page.html_body)
             sanitised_pages.append(dataclasses.replace(page, html_body=clean_html))
 
+        # ── Stage 3.5: Upload binary assets and rewrite <img src> ────────────
+        ready_pages: list[IRPage] = []
+        for page in sanitised_pages:
+            img_srcs = _extract_img_srcs(page.html_body)
+            url_map: dict[str, str] = {}
+            for src in img_srcs:
+                obj_uuid = _object_uuid_from_url(src)
+                try:
+                    content, mime_type = await self._adapter.fetch_binary(src)
+                    ext = _MIME_TO_EXT.get(mime_type, ".bin")
+                    sf_url = await self._connector.upload_binary(
+                        obj_uuid, content, mime_type, f"{obj_uuid}{ext}"
+                    )
+                    url_map[src] = sf_url
+                    log.info("Uploaded binary %s → %s", obj_uuid, sf_url)
+                except Exception as exc:
+                    log.warning("Failed to upload binary %s: %s", src[:80], exc)
+            if url_map:
+                page = dataclasses.replace(
+                    page, html_body=_rewrite_img_srcs(page.html_body, url_map)
+                )
+            ready_pages.append(page)
+
         # ── Stage 4: Load (upsert + publish) ─────────────────────────────────
         upsert_results: list[UpsertResult] = []
         link_map: dict[str, str] = {}  # source_uuid → target_article_id
 
-        for page in sanitised_pages:
+        for page in ready_pages:
             result = await self._connector.upsert_article(page, self._mapping)
             if not result.update_skipped:
                 try:
