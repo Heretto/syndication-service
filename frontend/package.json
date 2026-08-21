@@ -10,7 +10,7 @@
   },
   "private": true,
   "dependencies": {
-    "@heretto/hop-ui": "file:../../hop-core/ui/dist/hop-ui/heretto-hop-ui-0.1.0.tgz",
+    "@heretto/hop-ui": "file:../../hop-core/ui/dist/hop-ui",
     "@angular/animations": "^19.2.25",
     "@angular/cdk": "^19.2.19",
     "@angular/common": "^19.2.25",
