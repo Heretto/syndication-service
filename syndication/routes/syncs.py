@@ -205,11 +205,11 @@ def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context
 
 
 @router.delete("/{sync_id}", status_code=status.HTTP_204_NO_CONTENT)
-def deactivate_sync(request: Request, sync_id: str, context: OrgCtx):
-    """Deactivate a sync and remove it from the scheduler."""
+def delete_sync(request: Request, sync_id: str, context: OrgCtx):
+    """Permanently delete a sync and remove it from the scheduler."""
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
-    _store(request).deactivate_sync(sync_id)
+    _store(request).delete_sync(sync_id)
     _scheduler(request).remove_schedule(sync_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

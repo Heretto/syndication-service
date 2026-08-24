@@ -178,7 +178,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
                 <mat-icon>edit</mat-icon>
               </a>
               <button mat-icon-button class="action-btn action-btn-danger" (click)="deleteSync(s)"
-                      matTooltip="Deactivate">
+                      matTooltip="Delete">
                 <mat-icon>delete</mat-icon>
               </button>
             </div>
@@ -342,9 +342,9 @@ export class SyncListComponent implements OnInit {
   deleteSync(sync: SyncConfig) {
     const ref = this.dialog.open(HopConfirmDialogComponent, {
       data: {
-        title: 'Deactivate Sync',
-        message: `Deactivate "${sync.name}"? This will stop all scheduled runs for this sync.`,
-        confirmText: 'Deactivate',
+        title: 'Delete Sync',
+        message: `Permanently delete "${sync.name}"? This cannot be undone — all run history and records will be removed.`,
+        confirmText: 'Delete',
       },
     });
     ref.afterClosed()
@@ -353,7 +353,7 @@ export class SyncListComponent implements OnInit {
         if (confirmed) {
           this.syncService.delete(sync.id)
             .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ next: () => { this.notifications.success('Sync deactivated'); this.loadSyncs(); } });
+            .subscribe({ next: () => { this.notifications.success('Sync deleted'); this.loadSyncs(); } });
         }
       });
   }

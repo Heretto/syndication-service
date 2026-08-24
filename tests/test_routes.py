@@ -94,7 +94,7 @@ def mock_store():
     store.get_sync = MagicMock(return_value=_make_sync_cfg())
     store.create_sync = MagicMock(return_value=_make_sync_cfg())
     store.update_sync = MagicMock(return_value=_make_sync_cfg())
-    store.deactivate_sync = MagicMock()
+    store.delete_sync = MagicMock()
     store.list_runs = MagicMock(return_value=[_make_run()])
     store.list_records = MagicMock(return_value=[_make_record()])
     return store
@@ -286,14 +286,14 @@ class TestUpdateSync:
 
 # ── DELETE /syncs/{sync_id} ───────────────────────────────────────────────────
 
-class TestDeactivateSync:
+class TestDeleteSync:
     def test_returns_204(self, client):
         resp = client.delete("/syncs/sync-001")
         assert resp.status_code == 204
 
-    def test_store_deactivate_called(self, client, mock_store):
+    def test_store_delete_called(self, client, mock_store):
         client.delete("/syncs/sync-001")
-        mock_store.deactivate_sync.assert_called_once_with("sync-001")
+        mock_store.delete_sync.assert_called_once_with("sync-001")
 
     def test_scheduler_remove_called(self, client, mock_scheduler):
         client.delete("/syncs/sync-001")

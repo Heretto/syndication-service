@@ -50,7 +50,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
               <mat-icon>play_arrow</mat-icon> Run Now
             </button>
             <button mat-stroked-button class="action-banner-btn action-danger" (click)="deactivate()">
-              <mat-icon>delete</mat-icon> Deactivate
+              <mat-icon>delete</mat-icon> Delete
             </button>
           </div>
         </div>
@@ -291,9 +291,9 @@ export class SyncDetailComponent implements OnInit {
     if (!this.sync) return;
     const ref = this.dialog.open(HopConfirmDialogComponent, {
       data: {
-        title: 'Deactivate Sync',
-        message: `Deactivate "${this.sync.name}"? This will stop all scheduled runs.`,
-        confirmText: 'Deactivate',
+        title: 'Delete Sync',
+        message: `Permanently delete "${this.sync.name}"? This cannot be undone — all run history and records will be removed.`,
+        confirmText: 'Delete',
       },
     });
     ref.afterClosed()
@@ -304,7 +304,7 @@ export class SyncDetailComponent implements OnInit {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({
               next: () => {
-                this.notifications.success('Sync deactivated');
+                this.notifications.success('Sync deleted');
                 this.router.navigate(['/syncs']);
               },
             });

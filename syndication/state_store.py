@@ -141,6 +141,15 @@ class SyncStateStore:
 
         self._with_session(_deactivate)
 
+    def delete_sync(self, sync_id: str) -> None:
+        """Permanently delete a SyncConfig and all its runs and records."""
+        def _delete(db: Session) -> None:
+            cfg = db.query(SyncConfig).filter(SyncConfig.id == sync_id).first()
+            if cfg is not None:
+                db.delete(cfg)
+
+        self._with_session(_delete)
+
     # ── High-water mark ───────────────────────────────────────────────────────
 
     def get_high_water_mark(self, sync_id: str) -> str | None:

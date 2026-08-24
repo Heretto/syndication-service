@@ -66,6 +66,14 @@ class TestSyncConfig:
         store.deactivate_sync(cfg.id)
         assert store.list_active_syncs() == []
 
+    def test_delete_sync_removes_record(self, store: SyncStateStore):
+        cfg = store.create_sync("S1", "deploy", "noop", "org", "dep", "0 * * * *")
+        store.delete_sync(cfg.id)
+        assert store.get_sync(cfg.id) is None
+
+    def test_delete_sync_is_idempotent(self, store: SyncStateStore):
+        store.delete_sync("nonexistent-id")  # must not raise
+
 
 # ── High-water mark ───────────────────────────────────────────────────────────
 
