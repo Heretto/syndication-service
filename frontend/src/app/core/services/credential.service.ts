@@ -30,4 +30,8 @@ export class CredentialService {
   create(data: CredentialCreate): Observable<Credential> {
     return this.api.post<Credential>('/credentials', data);
   }
+
+  delete(id: string): Observable<void> {
+    return this.api.delete(`/credentials/${id}`);
+  }
 }

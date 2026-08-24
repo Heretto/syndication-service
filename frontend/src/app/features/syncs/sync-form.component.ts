@@ -10,6 +10,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
 import { CredentialService, Credential, CredentialCreate } from '../../core/services/credential.service';
 import { NotificationService } from '../../core/services/notification.service';
@@ -81,7 +82,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
   imports: [
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
     MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, MatProgressSpinnerModule, MatDividerModule,
+    MatSelectModule, MatProgressSpinnerModule, MatDividerModule, MatTooltipModule,
     CronBuilderComponent,
   ],
   template: `
@@ -166,6 +167,20 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             </mat-select>
             <mat-hint>Stored credentials for {{ connectorLabel }}. Secrets are encrypted at rest.</mat-hint>
           </mat-form-field>
+
+          <!-- Saved credentials list with delete -->
+          <div *ngIf="!credsLoading && credentials.length > 0" class="cred-manage-list">
+            <div class="cred-manage-row" *ngFor="let c of credentials">
+              <mat-icon class="cred-manage-icon">key</mat-icon>
+              <span class="cred-manage-name">{{ c.name }}</span>
+              <button mat-icon-button type="button" class="cred-delete-btn"
+                      (click)="deleteCredential(c)"
+                      [attr.aria-label]="'Delete credential ' + c.name"
+                      matTooltip="Delete">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
 
           <!-- Create new credential toggle -->
           <div class="new-cred-toggle">
@@ -325,6 +340,14 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
 
     /* Credentials */
     .creds-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #5e6e82; margin-bottom: 12px; }
+    .cred-manage-list { margin: 4px 0 8px; border: 1px solid #dee2ec; border-radius: 4px; overflow: hidden; }
+    .cred-manage-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 12px; border-bottom: 1px solid #f0f2f7; }
+    .cred-manage-row:last-child { border-bottom: none; }
+    .cred-manage-icon { font-size: 14px; width: 14px; height: 14px; color: #5e6e82; flex-shrink: 0; }
+    .cred-manage-name { flex: 1; font-size: 13px; color: #1d1f2b; }
+    .cred-delete-btn { color: #5e6e82 !important; width: 28px; height: 28px; line-height: 28px; flex-shrink: 0; }
+    .cred-delete-btn:hover { color: #de350b !important; }
+    .cred-delete-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .new-cred-toggle { margin-top: 8px; }
     .new-cred-btn { border-color: #dee2ec; color: #5e6e82; font-size: 12.5px; }
     .new-cred-form { margin-top: 12px; }
@@ -566,6 +589,23 @@ export class SyncFormComponent implements OnInit {
           this.notifications.success(`Credential "${cred.name}" saved.`);
         },
         error: () => { this.savingCred = false; },
+      });
+  }
+
+  deleteCredential(cred: Credential) {
+    if (!confirm(`Permanently delete credential "${cred.name}"? Any syncs using it will lose their connection.`)) {
+      return;
+    }
+    this.credService.delete(cred.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.credentials = this.credentials.filter(c => c.id !== cred.id);
+          if (this.form.get('credential_id')?.value === cred.id) {
+            this.form.get('credential_id')!.setValue(null);
+          }
+          this.notifications.success(`Credential "${cred.name}" deleted.`);
+        },
       });
   }
 
