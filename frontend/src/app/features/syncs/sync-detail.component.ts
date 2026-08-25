@@ -46,11 +46,11 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
             </div>
           </div>
           <div class="banner-right">
-            <button mat-stroked-button class="action-banner-btn" (click)="triggerNow()" matTooltip="Run sync now">
-              <mat-icon>play_arrow</mat-icon> Run Now
+            <button mat-stroked-button class="action-banner-btn" (click)="triggerNow()" matTooltip="Sync files changed since the last run">
+              <mat-icon>play_arrow</mat-icon> Sync Changes
             </button>
             <button mat-stroked-button class="action-banner-btn" (click)="forceResync()" matTooltip="Fetch every topic from the source, ignoring the change cursor">
-              <mat-icon>refresh</mat-icon> Force Full Resync
+              <mat-icon>refresh</mat-icon> Full Resync
             </button>
             <button mat-stroked-button class="action-banner-btn action-danger" (click)="deactivate()">
               <mat-icon>delete</mat-icon> Delete
@@ -110,7 +110,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
 
           <div *ngIf="!runsLoading && runs.length === 0" class="runs-empty">
             <mat-icon>history</mat-icon>
-            <p>No runs yet. Click "Run Now" to trigger the first sync.</p>
+            <p>No runs yet. Click "Sync Changes" to trigger the first sync.</p>
           </div>
 
           <div class="run-list" *ngIf="runs.length > 0">
