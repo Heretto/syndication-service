@@ -8,7 +8,7 @@ import httpx
 import pytest
 import respx
 
-from syndication.ir.types import ChangeSet, IRPage
+from syndication.ir.types import ChangeSet, IRPage, IRTaxonomyValue
 from syndication.source.deploy.client import DeployClient
 from syndication.source.deploy.adapter import DeployAdapter
 
@@ -75,9 +75,29 @@ CONTENT_PAYLOAD = {
 
 STRUCTURE_PAYLOAD = {
     "snapshotId": "snap-xyz",
-    "items": [
-        {"path": "help/topic-a", "type": "topic"},
-        {"path": "help/topic-b", "type": "topic"},
+    "type": "topicref",
+    "href": "/",
+    "sys": {"uuid": "root-uuid"},
+    "children": [
+        {
+            "type": "topicref",
+            "href": "help/topic-a",
+            "sys": {"uuid": "uuid-aaa"},
+            "children": [],
+        },
+        {
+            "type": "topichead",   # navigation heading — no content, should be skipped
+            "href": "help/section",
+            "sys": {"uuid": ""},
+            "children": [
+                {
+                    "type": "topicref",
+                    "href": "help/topic-b",
+                    "sys": {"uuid": "uuid-bbb"},
+                    "children": [],
+                },
+            ],
+        },
     ],
 }
 
@@ -151,7 +171,7 @@ class TestDeployClient:
             result = await client.get_structure()
 
         assert result["snapshotId"] == "snap-xyz"
-        assert len(result["items"]) == 2
+        assert len(result["children"]) == 2
 
     async def test_fetch_binary(self, client: DeployClient):
         binary_url = "https://cdn.example.com/img.png"
@@ -296,3 +316,248 @@ class TestDeployAdapter:
 
         assert data == b"%PDF"
         assert mime == "application/pdf"
+
+    async def test_get_all_from_structure_returns_changeset(self, adapter: DeployAdapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(
+                f"/v4/deployments/{DEPLOYMENT_ID}/structure"
+            ).mock(return_value=httpx.Response(200, json=STRUCTURE_PAYLOAD))
+
+            cs = await adapter.get_all_from_structure()
+
+        assert isinstance(cs, ChangeSet)
+        changed_uuids = {uuid for uuid, _ in cs.changed}
+        assert changed_uuids == {"uuid-aaa", "uuid-bbb"}
+
+    async def test_get_all_from_structure_high_water_mark_is_empty(self, adapter: DeployAdapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(
+                f"/v4/deployments/{DEPLOYMENT_ID}/structure"
+            ).mock(return_value=httpx.Response(200, json=STRUCTURE_PAYLOAD))
+
+            cs = await adapter.get_all_from_structure()
+
+        assert cs.high_water_mark == ""
+
+    async def test_get_all_from_structure_no_removed_uuids(self, adapter: DeployAdapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(
+                f"/v4/deployments/{DEPLOYMENT_ID}/structure"
+            ).mock(return_value=httpx.Response(200, json=STRUCTURE_PAYLOAD))
+
+            cs = await adapter.get_all_from_structure()
+
+        assert cs.removed_uuids == []
+
+    async def test_get_page_populates_taxonomy(self, adapter: DeployAdapter):
+        payload = {
+            **CONTENT_PAYLOAD,
+            "customMetadata": {
+                "taxonomy": {
+                    "Audiences": {
+                        "humanReadable": "Audiences",
+                        "value": "Agent",
+                        "values": [{"value": "Agent", "humanReadable": "Agent"}],
+                    },
+                    "Accounts": {
+                        "humanReadable": "Accounts",
+                        "value": "payments-billing",
+                        "values": [{"value": "payments-billing", "humanReadable": "Payments & Billing"}],
+                    },
+                }
+            },
+        }
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/content").mock(
+                return_value=httpx.Response(200, json=payload)
+            )
+            page = await adapter.get_page("help/topic-a")
+
+        assert "Audiences" in page.taxonomy
+        assert "Accounts" in page.taxonomy
+        assert page.taxonomy["Audiences"][0].value == "Agent"
+        assert page.taxonomy["Accounts"][0].human_readable == "Payments & Billing"
+
+    async def test_get_page_empty_taxonomy_when_no_custom_metadata(self, adapter: DeployAdapter):
+        payload = {**CONTENT_PAYLOAD, "customMetadata": {}}
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/content").mock(
+                return_value=httpx.Response(200, json=payload)
+            )
+            page = await adapter.get_page("help/topic-a")
+
+        assert page.taxonomy == {}
+
+
+# ── _parse_taxonomy unit tests ────────────────────────────────────────────────
+
+class TestParseTaxonomy:
+    def test_empty_custom_metadata_returns_empty_dict(self):
+        assert DeployAdapter._parse_taxonomy({}) == {}
+
+    def test_empty_taxonomy_key_returns_empty_dict(self):
+        assert DeployAdapter._parse_taxonomy({"taxonomy": {}}) == {}
+
+    def test_single_group_single_value(self):
+        result = DeployAdapter._parse_taxonomy({
+            "taxonomy": {
+                "Audiences": {"values": [{"value": "Agent", "humanReadable": "Agent"}]}
+            }
+        })
+        assert len(result["Audiences"]) == 1
+        assert result["Audiences"][0].value == "Agent"
+        assert result["Audiences"][0].human_readable == "Agent"
+
+    def test_multiple_groups(self):
+        result = DeployAdapter._parse_taxonomy({
+            "taxonomy": {
+                "Audiences": {"values": [{"value": "Agent", "humanReadable": "Agent"}]},
+                "Accounts":  {"values": [{"value": "payments-billing", "humanReadable": "Payments & Billing"}]},
+            }
+        })
+        assert set(result.keys()) == {"Audiences", "Accounts"}
+        assert result["Accounts"][0].value == "payments-billing"
+        assert result["Accounts"][0].human_readable == "Payments & Billing"
+
+    def test_multiple_values_in_one_group(self):
+        result = DeployAdapter._parse_taxonomy({
+            "taxonomy": {
+                "Products": {"values": [
+                    {"value": "cloud",    "humanReadable": "Cloud"},
+                    {"value": "on-prem",  "humanReadable": "On-Premise"},
+                ]}
+            }
+        })
+        assert len(result["Products"]) == 2
+        assert {v.value for v in result["Products"]} == {"cloud", "on-prem"}
+
+    def test_human_readable_defaults_to_value_when_absent(self):
+        result = DeployAdapter._parse_taxonomy({
+            "taxonomy": {"Products": {"values": [{"value": "cloud"}]}}
+        })
+        assert result["Products"][0].human_readable == "cloud"
+
+    def test_values_with_empty_value_string_are_skipped(self):
+        result = DeployAdapter._parse_taxonomy({
+            "taxonomy": {"Products": {"values": [{"value": ""}, {"value": "cloud"}]}}
+        })
+        assert len(result["Products"]) == 1
+        assert result["Products"][0].value == "cloud"
+
+    def test_returns_ir_taxonomy_value_instances(self):
+        result = DeployAdapter._parse_taxonomy({
+            "taxonomy": {"Audiences": {"values": [{"value": "Agent", "humanReadable": "Agent"}]}}
+        })
+        assert isinstance(result["Audiences"][0], IRTaxonomyValue)
+
+
+# ── _collect_topics unit tests ────────────────────────────────────────────────
+
+class TestCollectTopics:
+    def test_collects_topicref_with_uuid(self):
+        node = {
+            "type": "topicref",
+            "href": "some/path",
+            "sys": {"uuid": "abc"},
+            "children": [],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out == [("abc", "some/path")]
+
+    def test_skips_root_href(self):
+        node = {
+            "type": "topicref",
+            "href": "/",
+            "sys": {"uuid": "root"},
+            "children": [],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out == []
+
+    def test_skips_topichead(self):
+        node = {
+            "type": "topichead",
+            "href": "section/heading",
+            "sys": {"uuid": "head-uuid"},
+            "children": [],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out == []
+
+    def test_skips_node_with_empty_uuid(self):
+        node = {
+            "type": "topicref",
+            "href": "some/path",
+            "sys": {"uuid": ""},
+            "children": [],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out == []
+
+    def test_recurses_into_children(self):
+        node = {
+            "type": "topichead",
+            "href": "section",
+            "sys": {"uuid": ""},
+            "children": [
+                {
+                    "type": "topicref",
+                    "href": "section/child",
+                    "sys": {"uuid": "child-uuid"},
+                    "children": [],
+                }
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out == [("child-uuid", "section/child")]
+
+    def test_deep_nesting(self):
+        node = {
+            "type": "topicref",
+            "href": "/",
+            "sys": {"uuid": "root"},
+            "children": [
+                {
+                    "type": "topichead",
+                    "href": "tile-1",
+                    "sys": {"uuid": ""},
+                    "children": [
+                        {
+                            "type": "topichead",
+                            "href": "tile-1/intro",
+                            "sys": {"uuid": ""},
+                            "children": [
+                                {
+                                    "type": "topicref",
+                                    "href": "tile-1/intro/leaf",
+                                    "sys": {"uuid": "leaf-uuid"},
+                                    "children": [],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out == [("leaf-uuid", "tile-1/intro/leaf")]
+
+    def test_multiple_topics_at_same_level(self):
+        node = {
+            "type": "topicref",
+            "href": "/",
+            "sys": {"uuid": "root"},
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                {"type": "topicref", "href": "b", "sys": {"uuid": "uuid-b"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert {(u, h) for u, h in out} == {("uuid-a", "a"), ("uuid-b", "b")}

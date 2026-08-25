@@ -48,7 +48,7 @@ class SyncExecutorService:
         self._running: set[str] = set()
         self._consecutive_failures: dict[str, int] = {}
 
-    async def execute(self, sync_id: str) -> None:
+    async def execute(self, sync_id: str, force_full: bool = False) -> None:
         """Execute a sync run for *sync_id*.
 
         Silently returns if:
@@ -58,6 +58,12 @@ class SyncExecutorService:
         On exception the run is marked as failed and the consecutive-failure
         counter increments.  After reaching ``settings.sync_max_consecutive_failures``
         the sync is automatically deactivated.
+
+        Args:
+            sync_id:    The sync configuration to run.
+            force_full: When ``True``, bypass the high-water-mark cursor and
+                        fetch every topic from the source structure.  The cursor
+                        is not advanced after a forced resync.
         """
         # ── Concurrent-run guard ───────────────────────────────────────────────
         if sync_id in self._running:
@@ -80,21 +86,25 @@ class SyncExecutorService:
             connector = self._connector_factory(cfg)
             pipeline = SyncPipeline(adapter=adapter, connector=connector, mapping=mapping)
 
-            since = self._store.get_high_water_mark(sync_id)
-
-            # Peek at the changeset to resolve removed UUIDs → target article IDs
-            # before the pipeline runs. The pipeline calls get_changed() again
-            # internally; the duplication is intentional so both layers remain
-            # independently testable.
-            peek = await adapter.get_changed(since=since)
-            removed_target_ids = self._store.get_target_ids_for_uuids(
-                sync_id, peek.removed_uuids
-            )
+            if force_full:
+                since = None
+                removed_target_ids = {}
+            else:
+                since = self._store.get_high_water_mark(sync_id)
+                # Peek at the changeset to resolve removed UUIDs → target article IDs
+                # before the pipeline runs. The pipeline calls get_changed() again
+                # internally; the duplication is intentional so both layers remain
+                # independently testable.
+                peek = await adapter.get_changed(since=since)
+                removed_target_ids = self._store.get_target_ids_for_uuids(
+                    sync_id, peek.removed_uuids
+                )
 
             result = await pipeline.run(
                 run_id=run_id,
                 since=since,
                 removed_target_ids=removed_target_ids,
+                force_full=force_full,
             )
 
             # ── Persist results ────────────────────────────────────────────────

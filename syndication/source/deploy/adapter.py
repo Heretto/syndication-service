@@ -50,7 +50,21 @@ class DeployAdapter(ISourceAdapter):
 
     async def get_all_hrefs(self) -> list[str]:
         structure = await self._client.get_structure()
-        return [item["path"] for item in structure.get("items", [])]
+        items: list[tuple[str, str]] = []
+        self._collect_topics(structure, items)
+        return [href for _, href in items]
+
+    async def get_all_from_structure(self) -> ChangeSet:
+        """Walk the full structure tree and return every topic as a ChangeSet.
+
+        ``high_water_mark`` is left empty so the executor does not advance the
+        incremental cursor — the next scheduled run will still pick up any
+        changes that occurred after the previous cursor.
+        """
+        structure = await self._client.get_structure()
+        items: list[tuple[str, str]] = []
+        self._collect_topics(structure, items)
+        return ChangeSet(changed=items, removed_uuids=[], high_water_mark="")
 
     async def get_changed(self, since: str | None) -> ChangeSet:
         """Return a deduplicated ChangeSet from the /changed_content endpoint.
@@ -111,7 +125,18 @@ class DeployAdapter(ISourceAdapter):
     async def fetch_binary(self, url: str) -> tuple[bytes, str]:
         return await self._client.fetch_binary(url)
 
-    # ── Mapping ───────────────────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _collect_topics(node: dict, out: list[tuple[str, str]]) -> None:
+        """Recursively collect (uuid, href) pairs for every topicref with content."""
+        href = node.get("href", "/")
+        if node.get("type") == "topicref" and href != "/":
+            uuid = node.get("sys", {}).get("uuid", "")
+            if uuid and href:
+                out.append((uuid, href))
+        for child in node.get("children", []):
+            DeployAdapter._collect_topics(child, out)
 
     @staticmethod
     def _parse_taxonomy(custom_metadata: dict) -> dict[str, list[IRTaxonomyValue]]:

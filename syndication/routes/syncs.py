@@ -242,11 +242,18 @@ def list_records(
 
 
 @router.post("/{sync_id}/trigger", response_model=TriggerResponse, status_code=status.HTTP_202_ACCEPTED)
-async def trigger_sync(request: Request, sync_id: str, context: OrgCtx):
-    """Manually trigger an immediate sync run."""
+async def trigger_sync(request: Request, sync_id: str, context: OrgCtx, force_full: bool = False):
+    """Manually trigger an immediate sync run.
+
+    Pass ``?force_full=true`` to bypass the high-water-mark cursor and fetch
+    every topic from the source structure (force full resync).
+    """
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
     executor = _executor(request)
     # Fire-and-forget: don't wait for completion
-    asyncio.ensure_future(executor.execute(sync_id))
-    return TriggerResponse(sync_id=sync_id, message="Sync triggered.")
+    asyncio.ensure_future(executor.execute(sync_id, force_full=force_full))
+    return TriggerResponse(
+        sync_id=sync_id,
+        message="Full resync triggered." if force_full else "Sync triggered.",
+    )

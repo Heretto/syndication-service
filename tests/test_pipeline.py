@@ -64,6 +64,7 @@ def mock_connector():
     connector.publish_article = AsyncMock()
     connector.archive_article = AsyncMock()
     connector.deferred_link_fixup = AsyncMock(return_value=2)
+    connector.sync_data_categories = AsyncMock()
     return connector
 
 
@@ -132,11 +133,12 @@ class TestLoad:
         await pipeline.run(run_id="r1", since=None)
         assert mock_connector.upsert_article.await_count == 2
 
-    async def test_upsert_receives_mapping(self, pipeline, mock_connector):
+    async def test_upsert_receives_field_map_without_category_map(self, pipeline, mock_connector):
         await pipeline.run(run_id="r1", since=None)
         for call in mock_connector.upsert_article.await_args_list:
             _, mapping = call.args
             assert mapping == {"field": "value"}
+            assert "category_map" not in mapping
 
     async def test_publish_called_for_each_upserted_article(self, pipeline, mock_connector):
         await pipeline.run(run_id="r1", since=None)
@@ -225,3 +227,158 @@ class TestPipelineResultValues:
         assert "uuid-b" in result.article_mappings
         assert result.article_mappings["uuid-a"] == "target-uuid-a"
         assert result.article_mappings["uuid-b"] == "target-uuid-b"
+
+
+# ── Data category sync ────────────────────────────────────────────────────────
+
+class TestDataCategorySync:
+    async def test_category_map_not_passed_to_upsert_article(self, mock_adapter, mock_connector):
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"title": "Title", "category_map": {"Audiences": "Audiences"}},
+        )
+        await pipeline.run(run_id="r1", since=None)
+
+        for call in mock_connector.upsert_article.await_args_list:
+            _, field_map = call.args
+            assert "category_map" not in field_map
+            assert "title" in field_map
+
+    async def test_sync_data_categories_called_once_per_page(self, mock_adapter, mock_connector):
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"title": "Title", "category_map": {"Audiences": "Audiences"}},
+        )
+        await pipeline.run(run_id="r1", since=None)
+
+        assert mock_connector.sync_data_categories.await_count == 2
+
+    async def test_sync_data_categories_receives_category_map(self, mock_adapter, mock_connector):
+        category_map = {"Audiences": "Audiences", "Accounts": "Products"}
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"title": "Title", "category_map": category_map},
+        )
+        await pipeline.run(run_id="r1", since=None)
+
+        for call in mock_connector.sync_data_categories.await_args_list:
+            passed_map = call.args[2] if len(call.args) > 2 else call.kwargs.get("category_map")
+            assert passed_map == category_map
+
+    async def test_sync_data_categories_receives_empty_map_when_not_configured(
+        self, mock_adapter, mock_connector
+    ):
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"title": "Title"},
+        )
+        await pipeline.run(run_id="r1", since=None)
+
+        for call in mock_connector.sync_data_categories.await_args_list:
+            passed_map = call.args[2] if len(call.args) > 2 else call.kwargs.get("category_map", {})
+            assert passed_map == {}
+
+    async def test_sync_data_categories_failure_does_not_block_publish(
+        self, mock_adapter, mock_connector
+    ):
+        mock_connector.sync_data_categories = AsyncMock(side_effect=Exception("SF category error"))
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"title": "Title", "category_map": {"Audiences": "Audiences"}},
+        )
+        await pipeline.run(run_id="r1", since=None)
+
+        assert mock_connector.publish_article.await_count == 2
+
+    async def test_sync_data_categories_not_called_for_skipped_update(
+        self, mock_adapter, mock_connector
+    ):
+        mock_connector.upsert_article = AsyncMock(
+            return_value=UpsertResult(
+                target_article_id="target-skipped", created=False, update_skipped=True
+            )
+        )
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"title": "Title", "category_map": {"Audiences": "Audiences"}},
+        )
+        await pipeline.run(run_id="r1", since=None)
+
+        mock_connector.sync_data_categories.assert_not_awaited()
+
+
+# ── Force full resync ─────────────────────────────────────────────────────────
+
+class TestForceFullResync:
+    async def test_force_full_calls_get_all_from_structure(self, mock_adapter, mock_connector):
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=ChangeSet(
+                changed=[("uuid-a", "path/a")],
+                removed_uuids=[],
+                high_water_mark="",
+            )
+        )
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"field": "value"},
+        )
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        mock_adapter.get_all_from_structure.assert_awaited_once()
+        mock_adapter.get_changed.assert_not_awaited()
+
+    async def test_force_full_does_not_call_get_changed(self, mock_adapter, mock_connector):
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=ChangeSet(changed=[], removed_uuids=[], high_water_mark="")
+        )
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"field": "value"},
+        )
+        await pipeline.run(run_id="r1", since="2026-01-01T00:00:00.000Z", force_full=True)
+
+        mock_adapter.get_changed.assert_not_awaited()
+
+    async def test_force_full_high_water_mark_is_empty(self, mock_adapter, mock_connector):
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=ChangeSet(changed=[], removed_uuids=[], high_water_mark="")
+        )
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"field": "value"},
+        )
+        result = await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        assert result.high_water_mark == ""
+
+    async def test_force_full_false_uses_get_changed(self, pipeline, mock_adapter):
+        await pipeline.run(run_id="r1", since=None, force_full=False)
+
+        mock_adapter.get_changed.assert_awaited_once_with(since=None)
+
+    async def test_force_full_upserts_all_structure_pages(self, mock_adapter, mock_connector):
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=ChangeSet(
+                changed=[("uuid-x", "path/x"), ("uuid-y", "path/y")],
+                removed_uuids=[],
+                high_water_mark="",
+            )
+        )
+        pipeline = SyncPipeline(
+            adapter=mock_adapter,
+            connector=mock_connector,
+            mapping={"field": "value"},
+        )
+        result = await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        assert result.changed_count == 2
+        assert mock_connector.upsert_article.await_count == 2

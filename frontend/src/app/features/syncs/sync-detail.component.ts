@@ -49,6 +49,9 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
             <button mat-stroked-button class="action-banner-btn" (click)="triggerNow()" matTooltip="Run sync now">
               <mat-icon>play_arrow</mat-icon> Run Now
             </button>
+            <button mat-stroked-button class="action-banner-btn" (click)="forceResync()" matTooltip="Fetch every topic from the source, ignoring the change cursor">
+              <mat-icon>refresh</mat-icon> Force Resync
+            </button>
             <button mat-stroked-button class="action-banner-btn action-danger" (click)="deactivate()">
               <mat-icon>delete</mat-icon> Delete
             </button>
@@ -265,6 +268,31 @@ export class SyncDetailComponent implements OnInit {
           this._startRunPolling(syncId);
         },
       });
+  }
+
+  forceResync() {
+    if (!this.sync) return;
+    const syncId = this.sync.id;
+    const ref = this.dialog.open(HopConfirmDialogComponent, {
+      data: {
+        title: 'Force Full Resync',
+        message:
+          'This will fetch every topic from the source, bypassing the change cursor. ' +
+          'It may take longer than a normal sync. Continue?',
+        confirmLabel: 'Force Resync',
+      },
+    });
+    ref.afterClosed().subscribe(confirmed => {
+      if (!confirmed) return;
+      this.syncService.trigger(syncId, true)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.notifications.success('Full resync triggered');
+            this._startRunPolling(syncId);
+          },
+        });
+    });
   }
 
   private _startRunPolling(syncId: string, remaining = 15): void {

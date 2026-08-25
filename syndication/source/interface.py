@@ -60,3 +60,15 @@ class ISourceAdapter(ABC):
         The caller is responsible for persisting the asset; the adapter only
         performs the network download.
         """
+
+    async def get_all_from_structure(self) -> ChangeSet:
+        """Return every available topic as a ChangeSet for a force full resync.
+
+        The default raises ``NotImplementedError``; adapters that support a
+        structure/catalogue endpoint should override this.  The returned
+        ``ChangeSet.high_water_mark`` should be ``""`` so the executor does not
+        advance the incremental cursor after a forced resync.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support structure-based full resync."
+        )

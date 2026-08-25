@@ -71,8 +71,9 @@ export class SyncService {
     return this.api.delete(`/syncs/${id}`);
   }
 
-  trigger(id: string): Observable<{ sync_id: string; message: string }> {
-    return this.api.post(`/syncs/${id}/trigger`, {});
+  trigger(id: string, forceFull = false): Observable<{ sync_id: string; message: string }> {
+    const params = forceFull ? { force_full: 'true' } : undefined;
+    return this.api.post(`/syncs/${id}/trigger`, {}, params);
   }
 
   getRuns(syncId: string, limit = 20): Observable<SyncRun[]> {

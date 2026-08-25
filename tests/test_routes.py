@@ -344,7 +344,11 @@ class TestTrigger:
 
     def test_executor_execute_called(self, client, mock_executor):
         client.post("/syncs/sync-001/trigger")
-        mock_executor.execute.assert_awaited_once_with("sync-001")
+        mock_executor.execute.assert_awaited_once_with("sync-001", force_full=False)
+
+    def test_force_full_passes_flag(self, client, mock_executor):
+        client.post("/syncs/sync-001/trigger?force_full=true")
+        mock_executor.execute.assert_awaited_once_with("sync-001", force_full=True)
 
     def test_not_found_returns_404(self, client, mock_store):
         mock_store.get_sync.return_value = None

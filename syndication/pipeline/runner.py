@@ -98,6 +98,7 @@ class SyncPipeline:
         run_id: str,
         since: str | None,
         removed_target_ids: dict[str, str] | None = None,
+        force_full: bool = False,
     ) -> PipelineResult:
         """Execute a complete sync run.
 
@@ -111,6 +112,9 @@ class SyncPipeline:
                                 previously synced and must now be archived.
                                 Items in the changeset's ``removed_uuids`` that
                                 do not appear in this dict are silently skipped.
+            force_full:         When ``True`` bypasses ``changed_content`` and
+                                fetches every topic from the source structure,
+                                ignoring the high-water-mark cursor.
 
         Returns:
             :class:`PipelineResult` summarising the run.
@@ -118,7 +122,11 @@ class SyncPipeline:
         removed_target_ids = removed_target_ids or {}
 
         # ── Stage 1: Extract ──────────────────────────────────────────────────
-        changeset = await self._adapter.get_changed(since=since)
+        if force_full:
+            log.info("Force full resync requested for run %s — walking structure.", run_id)
+            changeset = await self._adapter.get_all_from_structure()
+        else:
+            changeset = await self._adapter.get_changed(since=since)
 
         # ── Stage 2: Fetch pages ──────────────────────────────────────────────
         pages: list[IRPage] = []
