@@ -105,3 +105,21 @@ class ITargetConnector(ABC):
         Returns the number of articles updated.  Called once after all
         ``upsert_article`` calls for a sync run have completed.
         """
+
+    async def sync_data_categories(
+        self,
+        article_id: str,
+        taxonomy: dict,
+        category_map: dict[str, str],
+    ) -> None:
+        """Sync taxonomy values to the target system's category/tag mechanism.
+
+        Called after upsert and before publish.  The default implementation is
+        a no-op; connectors that support category assignment (e.g. Salesforce
+        Knowledge Data Categories) override this method.
+
+        Args:
+            article_id:   The target system's article identifier.
+            taxonomy:     ``IRPage.taxonomy`` — group name → list of IRTaxonomyValue.
+            category_map: Mapping of Deploy taxonomy group name → target group API name.
+        """

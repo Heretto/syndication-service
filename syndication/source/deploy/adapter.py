@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from syndication.ir.types import ChangeSet, IRPage
+from syndication.ir.types import ChangeSet, IRPage, IRTaxonomyValue
 from syndication.source.interface import ISourceAdapter
 from syndication.source.deploy.client import DeployClient
 
@@ -113,6 +113,23 @@ class DeployAdapter(ISourceAdapter):
 
     # ── Mapping ───────────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _parse_taxonomy(custom_metadata: dict) -> dict[str, list[IRTaxonomyValue]]:
+        """Parse ``customMetadata.taxonomy`` into the IR taxonomy dict.
+
+        Deploy shape:
+            { "taxonomy": { "GroupName": { "values": [{ "value": "v", "humanReadable": "V" }] } } }
+        """
+        raw = custom_metadata.get("taxonomy", {})
+        return {
+            group: [
+                IRTaxonomyValue(v["value"], v.get("humanReadable", v["value"]))
+                for v in entry.get("values", [])
+                if v.get("value")
+            ]
+            for group, entry in raw.items()
+        }
+
     def _map_to_ir(self, data: dict) -> IRPage:
         sys_block = data.get("sys", {})
         std_meta = data.get("standardMetadata", {})
@@ -148,7 +165,7 @@ class DeployAdapter(ISourceAdapter):
             source_deployment_id=self._deployment_id,
             # enrichment fields — populated from nested payload sections
             breadcrumbs=[],        # TODO: parse breadcrumbs array
-            taxonomy={},           # TODO: parse customMetadata taxonomy
+            taxonomy=self._parse_taxonomy(data.get("customMetadata", {})),
             versions=[],           # TODO: parse versions array
             chunked_sections=[],   # TODO: parse chunked_sections array
             keywords=[],

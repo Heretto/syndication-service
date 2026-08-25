@@ -345,6 +345,40 @@ class SalesforceConnector(ITargetConnector):
                 response=resp,
             )
 
+    async def sync_data_categories(
+        self,
+        article_id: str,
+        taxonomy: dict,
+        category_map: dict[str, str],
+    ) -> None:
+        """Replace all Knowledge__DataCategorySelection records for *article_id*.
+
+        Queries existing selections, deletes them, then inserts one record per
+        taxonomy value for each group listed in *category_map*.
+        """
+        if not category_map or not taxonomy:
+            return
+
+        base = self._base_url()
+        sel_obj = "Knowledge__DataCategorySelection"
+
+        soql = f"SELECT Id FROM {sel_obj} WHERE ParentId = '{article_id}'"
+        q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
+        for rec in q_resp.json().get("records", []):
+            await self._request("DELETE", f"{base}/sobjects/{sel_obj}/{rec['Id']}")
+
+        for deploy_group, sf_group in category_map.items():
+            for tv in taxonomy.get(deploy_group, []):
+                await self._request(
+                    "POST",
+                    f"{base}/sobjects/{sel_obj}",
+                    json={
+                        "ParentId": article_id,
+                        "DataCategoryGroupName": sf_group,
+                        "DataCategoryName": tv.value,
+                    },
+                )
+
     async def archive_article(self, target_article_id: str) -> None:
         """Archive (delete draft) a Knowledge article."""
         base = self._base_url()

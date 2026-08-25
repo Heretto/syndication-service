@@ -291,6 +291,46 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
           </button>
         </section>
 
+        <!-- Data Category Mapping (Salesforce only) -->
+        <section class="form-section" *ngIf="form.get('connector_id')?.value === 'salesforce'">
+          <h2 class="section-title">Data Category Mapping</h2>
+          <p class="mapping-hint">
+            Map Heretto Deploy taxonomy groups to Salesforce Data Category groups.
+            Values within each group pass through unchanged — the Deploy taxonomy value
+            must match the SF Data Category API name exactly.
+          </p>
+
+          <div class="mapping-header" *ngIf="categoryMapArray.length > 0">
+            <span class="mapping-col-label">Deploy Taxonomy Group</span>
+            <span class="mapping-arrow-spacer"></span>
+            <span class="mapping-col-label">SF Category Group API Name</span>
+            <span class="mapping-remove-spacer"></span>
+          </div>
+
+          <div formArrayName="category_mapping" class="mapping-list">
+            <div *ngFor="let row of categoryMapArray.controls; let i = index"
+                 [formGroupName]="i" class="mapping-row">
+              <mat-form-field appearance="outline" class="mapping-field">
+                <mat-label>Deploy Taxonomy Group</mat-label>
+                <input matInput formControlName="deploy_group" placeholder="e.g. Audiences">
+              </mat-form-field>
+              <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+              <mat-form-field appearance="outline" class="mapping-field">
+                <mat-label>SF Category Group API Name</mat-label>
+                <input matInput formControlName="sf_group" placeholder="e.g. Audiences">
+              </mat-form-field>
+              <button mat-icon-button type="button" (click)="removeCategoryRow(i)"
+                      class="remove-row-btn" aria-label="Remove row">
+                <mat-icon>remove_circle_outline</mat-icon>
+              </button>
+            </div>
+          </div>
+
+          <button mat-stroked-button type="button" (click)="addCategoryRow()" class="add-row-btn">
+            <mat-icon>add</mat-icon> Add Category Group
+          </button>
+        </section>
+
         <!-- Actions -->
         <div class="form-actions">
           <a mat-stroked-button routerLink="/syncs" class="cancel-btn">Cancel</a>
@@ -463,17 +503,22 @@ export class SyncFormComponent implements OnInit {
   deployFieldsExpanded = false;
 
   form = this.fb.group({
-    name:            ['', Validators.required],
-    adapter_id:      ['deploy', Validators.required],
-    connector_id:    ['salesforce', Validators.required],
-    deployment_id:   [''],
-    credential_id:   [null as string | null],
-    cron_expression: ['0 9 * * *', Validators.required],
-    mapping:         this.fb.array<FormGroup>([]),
+    name:             ['', Validators.required],
+    adapter_id:       ['deploy', Validators.required],
+    connector_id:     ['salesforce', Validators.required],
+    deployment_id:    [''],
+    credential_id:    [null as string | null],
+    cron_expression:  ['0 9 * * *', Validators.required],
+    mapping:          this.fb.array<FormGroup>([]),
+    category_mapping: this.fb.array<FormGroup>([]),
   });
 
   get mappingArray(): FormArray {
     return this.form.get('mapping') as FormArray;
+  }
+
+  get categoryMapArray(): FormArray {
+    return this.form.get('category_mapping') as FormArray;
   }
 
   get connectorLabel(): string {
@@ -508,9 +553,17 @@ export class SyncFormComponent implements OnInit {
             credential_id:   sync.credential_id ?? null,
             cron_expression: sync.cron_expression,
           });
+          const rawMapping = { ...(sync.mapping || {}) };
+          const categoryMap = (rawMapping['category_map'] as Record<string, string>) || {};
+          delete rawMapping['category_map'];
+
           this.mappingArray.clear();
-          for (const [irField, targetField] of Object.entries(sync.mapping || {})) {
-            this.mappingArray.push(this._createMappingRow(irField, targetField));
+          for (const [irField, targetField] of Object.entries(rawMapping)) {
+            this.mappingArray.push(this._createMappingRow(irField, String(targetField)));
+          }
+          this.categoryMapArray.clear();
+          for (const [deployGroup, sfGroup] of Object.entries(categoryMap)) {
+            this.categoryMapArray.push(this._createCategoryRow(deployGroup, sfGroup));
           }
           this._loadCredentials(sync.connector_id);
           this._resetNewCredForm(sync.connector_id);
@@ -615,6 +668,7 @@ export class SyncFormComponent implements OnInit {
 
   private _applyDefaultMapping(connectorId: string | null): void {
     this.mappingArray.clear();
+    this.categoryMapArray.clear();
     const defaults = DEFAULT_MAPPINGS[connectorId || ''] || {};
     for (const [irField, targetField] of Object.entries(defaults)) {
       this.mappingArray.push(this._createMappingRow(irField, targetField));
@@ -629,12 +683,38 @@ export class SyncFormComponent implements OnInit {
     this.mappingArray.removeAt(index);
   }
 
-  private _buildMappingDict(): Record<string, string> {
+  private _createCategoryRow(deployGroup = '', sfGroup = ''): FormGroup {
+    return this.fb.group({ deploy_group: [deployGroup], sf_group: [sfGroup] });
+  }
+
+  addCategoryRow(): void {
+    this.categoryMapArray.push(this._createCategoryRow());
+  }
+
+  removeCategoryRow(index: number): void {
+    this.categoryMapArray.removeAt(index);
+  }
+
+  private _buildCategoryMap(): Record<string, string> {
     const result: Record<string, string> = {};
+    for (const row of this.categoryMapArray.value as Array<{ deploy_group: string; sf_group: string }>) {
+      if (row.deploy_group && row.sf_group) {
+        result[row.deploy_group] = row.sf_group;
+      }
+    }
+    return result;
+  }
+
+  private _buildMappingDict(): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
     for (const row of this.mappingArray.value as Array<{ ir_field: string; target_field: string }>) {
       if (row.ir_field && row.target_field) {
         result[row.ir_field] = row.target_field;
       }
+    }
+    const categoryMap = this._buildCategoryMap();
+    if (Object.keys(categoryMap).length > 0) {
+      result['category_map'] = categoryMap;
     }
     return result;
   }

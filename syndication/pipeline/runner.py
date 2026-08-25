@@ -159,9 +159,18 @@ class SyncPipeline:
         upsert_results: list[UpsertResult] = []
         link_map: dict[str, str] = {}  # source_uuid → target_article_id
 
+        category_map: dict = self._mapping.get("category_map", {})
+        field_map = {k: v for k, v in self._mapping.items() if k != "category_map"}
+
         for page in ready_pages:
-            result = await self._connector.upsert_article(page, self._mapping)
+            result = await self._connector.upsert_article(page, field_map)
             if not result.update_skipped:
+                try:
+                    await self._connector.sync_data_categories(
+                        result.target_article_id, page.taxonomy, category_map
+                    )
+                except Exception as exc:
+                    log.warning("sync_data_categories failed for %s: %s", result.target_article_id, exc)
                 try:
                     await self._connector.publish_article(result.target_article_id, was_online=result.was_online)
                 except Exception as exc:
