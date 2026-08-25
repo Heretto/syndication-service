@@ -295,8 +295,7 @@ export class SyncDetailComponent implements OnInit {
     });
   }
 
-  private _startRunPolling(syncId: string, remaining = 15): void {
-    if (remaining <= 0) return;
+  private _startRunPolling(syncId: string, deadline = Date.now() + 10 * 60 * 1000): void {
     this.runsLoading = true;
     setTimeout(() => {
       this.syncService.getRuns(syncId)
@@ -304,15 +303,16 @@ export class SyncDetailComponent implements OnInit {
         .subscribe({
           next: runs => {
             this.runs = runs;
-            this.runsLoading = false;
             const hasRunning = runs.some(r => r.status === 'running');
-            if (hasRunning) {
-              this._startRunPolling(syncId, remaining - 1);
+            if (hasRunning && Date.now() < deadline) {
+              this._startRunPolling(syncId, deadline);
+            } else {
+              this.runsLoading = false;
             }
           },
           error: () => { this.runsLoading = false; },
         });
-    }, 2000);
+    }, 3000);
   }
 
   deactivate() {
