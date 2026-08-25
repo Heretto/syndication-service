@@ -50,7 +50,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
               <mat-icon>play_arrow</mat-icon> Run Now
             </button>
             <button mat-stroked-button class="action-banner-btn" (click)="forceResync()" matTooltip="Fetch every topic from the source, ignoring the change cursor">
-              <mat-icon>refresh</mat-icon> Force Resync
+              <mat-icon>refresh</mat-icon> Force Full Resync
             </button>
             <button mat-stroked-button class="action-banner-btn action-danger" (click)="deactivate()">
               <mat-icon>delete</mat-icon> Delete
