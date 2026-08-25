@@ -1,6 +1,6 @@
 # Syndication Service
 
-A pipeline that syncs DITA content from Heretto Deploy to external knowledge bases — Salesforce Knowledge, Zendesk Guide, and ServiceNow — on a schedule or on demand.
+A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge on a schedule or on demand.
 
 ---
 
@@ -13,7 +13,7 @@ Heretto Deploy (source adapter)
         ↓
   IR Pipeline (runner)
         ↓
-  Target Connector (salesforce | zendesk | servicenow | noop)
+  Target Connector (salesforce | noop)
 ```
 
 The pipeline works through a target-neutral **Intermediate Representation** (`IRPage`), so the source and target layers are fully decoupled. Adding a new connector does not require touching the source or pipeline code.
@@ -84,34 +84,6 @@ Publishes articles to Salesforce Knowledge using the REST API. Supports the full
 - Configurable `knowledge_type` (default: `Knowledge__kav`)
 
 **Credential fields:** `instance_url`, `client_id`, `client_secret`, `api_version`, `knowledge_type`, `external_id_field`
-
----
-
-### Zendesk Guide (`connector_id: zendesk`)
-
-Publishes articles to a Zendesk Help Center section using label-based identity.
-
-- Bearer token auth
-- Label-based upsert: each article tagged `heretto-{uuid}` on creation
-- Publishes to a configured `section_id` within the Help Center
-- HTML sanitized before upload
-- Locale-aware (`en-us` default, configurable)
-
-**Credential fields:** `subdomain`, `access_token`, `section_id`, `locale`
-
----
-
-### ServiceNow Knowledge (`connector_id: servicenow`)
-
-Writes articles to the ServiceNow `kb_knowledge` table via the Table API.
-
-- Bearer token auth
-- Idempotent upserts via a custom external ID field (default: `u_external_id`)
-- Publish via `workflow_state → published`
-- Archive via `workflow_state → retired`
-- Configurable knowledge base (`knowledge_base_sys_id`) and default category (`kb_category_sys_id`)
-
-**Credential fields:** `instance_url`, `access_token`, `knowledge_base_sys_id`, `kb_category_sys_id`, `external_id_field`
 
 ---
 

@@ -37,42 +37,19 @@ const CRED_FIELDS: Record<string, CredField[]> = {
     { key: 'api_key',           label: 'Heretto Deploy API Key',  inputType: 'password' },
     { key: 'base_url',          label: 'Deploy API Base URL',     hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
   ],
-  servicenow: [
-    { key: 'instance_url',          label: 'Instance URL',            hint: 'https://mycompany.service-now.com' },
-    { key: 'access_token',          label: 'Access Token',            inputType: 'password' },
-    { key: 'knowledge_base_sys_id', label: 'Knowledge Base Sys ID' },
-    { key: 'kb_category_sys_id',    label: 'Category Sys ID',         hint: 'optional' },
-    { key: 'external_id_field',     label: 'External ID Field',       defaultVal: 'u_external_id' },
-    { key: 'api_key',               label: 'Heretto Deploy API Key',  inputType: 'password' },
-    { key: 'base_url',              label: 'Deploy API Base URL',     hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
-  ],
-  zendesk: [
-    { key: 'subdomain',     label: 'Subdomain',             hint: 'mycompany (not the full URL)' },
-    { key: 'access_token',  label: 'Access Token',          inputType: 'password' },
-    { key: 'section_id',    label: 'Section ID',            hint: 'Help Center section to publish into' },
-    { key: 'locale',        label: 'Locale',                defaultVal: 'en-us' },
-    { key: 'api_key',       label: 'Heretto Deploy API Key', inputType: 'password' },
-    { key: 'base_url',      label: 'Deploy API Base URL',   hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
-  ],
 };
 
 const DEFAULT_MAPPINGS: Record<string, Record<string, string>> = {
   salesforce: { title: 'Title', short_description: 'Summary__c', html_body: 'Answer__c' },
-  servicenow: { title: 'short_description', html_body: 'text' },
-  zendesk:    { title: 'title', html_body: 'body' },
 };
 
 const CONNECTOR_LABELS: Record<string, string> = {
   salesforce: 'Salesforce Knowledge',
-  servicenow: 'ServiceNow',
-  zendesk:    'Zendesk Guide',
   noop:       'No-op',
 };
 
 const TARGET_PLACEHOLDERS: Record<string, string> = {
   salesforce: 'e.g. Title, Answer__c, Summary__c',
-  servicenow: 'e.g. short_description, text',
-  zendesk:    'e.g. title, body',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -131,8 +108,6 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
               <mat-label>Target Connector</mat-label>
               <mat-select formControlName="connector_id">
                 <mat-option value="salesforce">Salesforce Knowledge</mat-option>
-                <mat-option value="servicenow">ServiceNow Knowledge</mat-option>
-                <mat-option value="zendesk">Zendesk Guide</mat-option>
                 <mat-option value="noop">No-op (dry run)</mat-option>
               </mat-select>
             </mat-form-field>
