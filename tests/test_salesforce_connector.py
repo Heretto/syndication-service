@@ -17,7 +17,7 @@ import respx
 
 from syndication.connector.interface import ITargetConnector, UpsertResult, ValidationError
 from syndication.connector.salesforce.connector import SalesforceConnector
-from syndication.ir.types import IRPage
+from syndication.ir.types import IRPage, IRTaxonomyValue
 
 SF_INSTANCE = "https://myorg.my.salesforce.com"
 API_VER = "65.0"
@@ -624,3 +624,130 @@ class TestOAuthTokenAcquisition:
 
         assert token_route.called
         assert result.target_article_id == "ka01NEW"
+
+
+# ── sync_data_categories ──────────────────────────────────────────────────────
+
+class TestSyncDataCategories:
+    SEL_OBJ = "Knowledge__DataCategorySelection"
+
+    def _query_url(self) -> str:
+        return f"{BASE}/query"
+
+    def _sel_url(self, sel_id: str = "") -> str:
+        base = f"{BASE}/sobjects/{self.SEL_OBJ}"
+        return f"{base}/{sel_id}" if sel_id else base
+
+    async def test_no_op_when_category_map_empty(self):
+        conn = _conn()
+        with respx.mock(assert_all_called=False):
+            await conn.sync_data_categories("ka01", {"Audiences": []}, {})
+
+    async def test_no_op_when_taxonomy_empty(self):
+        conn = _conn()
+        with respx.mock(assert_all_called=False):
+            await conn.sync_data_categories("ka01", {}, {"Audiences": "Audiences"})
+
+    async def test_queries_existing_selections_by_parent_id(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            route = mock.get(self._query_url()).mock(
+                return_value=httpx.Response(200, json={"records": []})
+            )
+            mock.post(self._sel_url()).mock(return_value=httpx.Response(201, json={"id": "new"}))
+            taxonomy = {"Audiences": [IRTaxonomyValue("Agent", "Agent")]}
+            await conn.sync_data_categories("ka01XYZ", taxonomy, {"Audiences": "Audiences"})
+
+        assert route.called
+        assert "ka01XYZ" in str(route.calls.last.request.url)
+
+    async def test_deletes_each_existing_selection(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url()).mock(
+                return_value=httpx.Response(200, json={"records": [{"Id": "sel-1"}, {"Id": "sel-2"}]})
+            )
+            del1 = mock.delete(self._sel_url("sel-1")).mock(return_value=httpx.Response(204))
+            del2 = mock.delete(self._sel_url("sel-2")).mock(return_value=httpx.Response(204))
+            mock.post(self._sel_url()).mock(return_value=httpx.Response(201, json={"id": "new"}))
+
+            taxonomy = {"Audiences": [IRTaxonomyValue("Agent", "Agent")]}
+            await conn.sync_data_categories("ka01", taxonomy, {"Audiences": "Audiences"})
+
+        assert del1.called
+        assert del2.called
+
+    async def test_inserts_one_record_per_taxonomy_value(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url()).mock(return_value=httpx.Response(200, json={"records": []}))
+            post_route = mock.post(self._sel_url()).mock(
+                return_value=httpx.Response(201, json={"id": "new"})
+            )
+            taxonomy = {"Audiences": [IRTaxonomyValue("Agent", "Agent")]}
+            await conn.sync_data_categories("ka01", taxonomy, {"Audiences": "Audiences"})
+
+        assert post_route.call_count == 1
+        body = json.loads(post_route.calls.last.request.content)
+        assert body["ParentId"] == "ka01"
+        assert body["DataCategoryGroupName"] == "Audiences"
+        assert body["DataCategoryName"] == "Agent"
+
+    async def test_maps_deploy_group_name_to_sf_group_name(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url()).mock(return_value=httpx.Response(200, json={"records": []}))
+            post_route = mock.post(self._sel_url()).mock(
+                return_value=httpx.Response(201, json={"id": "new"})
+            )
+            taxonomy = {"Audiences": [IRTaxonomyValue("Agent", "Agent")]}
+            await conn.sync_data_categories("ka01", taxonomy, {"Audiences": "SF_Audiences__c"})
+
+        body = json.loads(post_route.calls.last.request.content)
+        assert body["DataCategoryGroupName"] == "SF_Audiences__c"
+
+    async def test_inserts_multiple_values_in_one_group(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url()).mock(return_value=httpx.Response(200, json={"records": []}))
+            post_route = mock.post(self._sel_url()).mock(
+                return_value=httpx.Response(201, json={"id": "new"})
+            )
+            taxonomy = {"Products": [
+                IRTaxonomyValue("cloud",   "Cloud"),
+                IRTaxonomyValue("on-prem", "On-Premise"),
+            ]}
+            await conn.sync_data_categories("ka01", taxonomy, {"Products": "Products"})
+
+        assert post_route.call_count == 2
+        names = {json.loads(c.request.content)["DataCategoryName"] for c in post_route.calls}
+        assert names == {"cloud", "on-prem"}
+
+    async def test_groups_absent_from_category_map_are_ignored(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url()).mock(return_value=httpx.Response(200, json={"records": []}))
+            post_route = mock.post(self._sel_url()).mock(
+                return_value=httpx.Response(201, json={"id": "new"})
+            )
+            taxonomy = {
+                "Audiences": [IRTaxonomyValue("Agent", "Agent")],
+                "Unmapped":  [IRTaxonomyValue("foo",   "Foo")],
+            }
+            await conn.sync_data_categories("ka01", taxonomy, {"Audiences": "Audiences"})
+
+        assert post_route.call_count == 1
+        body = json.loads(post_route.calls.last.request.content)
+        assert body["DataCategoryGroupName"] == "Audiences"
+
+    async def test_sends_bearer_auth(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url()).mock(return_value=httpx.Response(200, json={"records": []}))
+            post_route = mock.post(self._sel_url()).mock(
+                return_value=httpx.Response(201, json={"id": "new"})
+            )
+            taxonomy = {"Audiences": [IRTaxonomyValue("Agent", "Agent")]}
+            await conn.sync_data_categories("ka01", taxonomy, {"Audiences": "Audiences"})
+
+        assert f"Bearer {ACCESS_TOKEN}" in post_route.calls.last.request.headers.get("Authorization", "")
