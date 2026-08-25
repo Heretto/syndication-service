@@ -295,9 +295,12 @@ class TestDataCategorySync:
 
         assert mock_connector.publish_article.await_count == 2
 
-    async def test_sync_data_categories_not_called_for_skipped_update(
+    async def test_sync_data_categories_called_even_when_update_skipped(
         self, mock_adapter, mock_connector
     ):
+        # Categories are independent of the draft/publish cycle — they must be
+        # applied even when the article content update was skipped (e.g. the
+        # article is already Published and the SF API cannot create a draft).
         mock_connector.upsert_article = AsyncMock(
             return_value=UpsertResult(
                 target_article_id="target-skipped", created=False, update_skipped=True
@@ -310,7 +313,7 @@ class TestDataCategorySync:
         )
         await pipeline.run(run_id="r1", since=None)
 
-        mock_connector.sync_data_categories.assert_not_awaited()
+        assert mock_connector.sync_data_categories.await_count == 2
 
 
 # ── Force full resync ─────────────────────────────────────────────────────────

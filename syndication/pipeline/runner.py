@@ -172,13 +172,15 @@ class SyncPipeline:
 
         for page in ready_pages:
             result = await self._connector.upsert_article(page, field_map)
+            # Always sync categories — they are independent of the draft/publish
+            # cycle and can be applied to Published articles directly.
+            try:
+                await self._connector.sync_data_categories(
+                    result.target_article_id, page.taxonomy, category_map
+                )
+            except Exception as exc:
+                log.warning("sync_data_categories failed for %s: %s", result.target_article_id, exc)
             if not result.update_skipped:
-                try:
-                    await self._connector.sync_data_categories(
-                        result.target_article_id, page.taxonomy, category_map
-                    )
-                except Exception as exc:
-                    log.warning("sync_data_categories failed for %s: %s", result.target_article_id, exc)
                 try:
                     await self._connector.publish_article(result.target_article_id, was_online=result.was_online)
                 except Exception as exc:
