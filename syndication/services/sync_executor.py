@@ -114,7 +114,7 @@ class SyncExecutorService:
             for source_uuid, target_id in result.article_mappings.items():
                 self._store.save_article_mapping(sync_id, source_uuid, target_id)
 
-            if peek.removed_uuids:
+            if not force_full and peek.removed_uuids:
                 self._store.mark_articles_archived(sync_id, peek.removed_uuids)
 
             self._store.complete_run(
