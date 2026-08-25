@@ -72,6 +72,8 @@ class PipelineResult:
     links_fixed: int                      # articles updated by deferred link-fixup pass
     article_mappings: dict[str, str] = dataclasses.field(default_factory=dict)
     # source_uuid → target_article_id; the executor persists these to the state store
+    warnings: list[str] = dataclasses.field(default_factory=list)
+    # non-fatal errors collected during the run (e.g. category sync failures)
 
 
 class SyncPipeline:
@@ -166,6 +168,7 @@ class SyncPipeline:
         # ── Stage 4: Load (upsert + publish) ─────────────────────────────────
         upsert_results: list[UpsertResult] = []
         link_map: dict[str, str] = {}  # source_uuid → target_article_id
+        run_warnings: list[str] = []
 
         category_map: dict = self._mapping.get("category_map", {})
         field_map = {k: v for k, v in self._mapping.items() if k != "category_map"}
@@ -179,12 +182,16 @@ class SyncPipeline:
                     result.target_article_id, page.taxonomy, category_map
                 )
             except Exception as exc:
-                log.warning("sync_data_categories failed for %s: %s", result.target_article_id, exc)
+                msg = f"Category sync failed for {result.target_article_id}: {exc}"
+                log.warning(msg)
+                run_warnings.append(msg)
             if not result.update_skipped:
                 try:
                     await self._connector.publish_article(result.target_article_id, was_online=result.was_online)
                 except Exception as exc:
-                    log.warning("publish_article failed for %s: %s", result.target_article_id, exc)
+                    msg = f"Publish failed for {result.target_article_id}: {exc}"
+                    log.warning(msg)
+                    run_warnings.append(msg)
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
 
@@ -205,4 +212,5 @@ class SyncPipeline:
             high_water_mark=changeset.high_water_mark,
             links_fixed=links_fixed,
             article_mappings=link_map,
+            warnings=run_warnings,
         )

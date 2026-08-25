@@ -122,6 +122,7 @@ class SyncExecutorService:
                 changed_count=result.changed_count,
                 removed_count=result.removed_count,
                 links_fixed=result.links_fixed,
+                warnings=result.warnings or None,
             )
 
             # Reset failure counter on success

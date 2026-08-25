@@ -27,6 +27,7 @@ export interface SyncRun {
   removed_count: number | null;
   links_fixed: number | null;
   error_message: string | null;
+  warning_messages: string[] | null;
 }
 
 export interface CreateSyncInput {

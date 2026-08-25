@@ -83,9 +83,13 @@ class SyncRunResponse(BaseModel):
     removed_count: int | None
     links_fixed: int | None
     error_message: str | None
+    warning_messages: list[str] | None
 
     @classmethod
     def from_model(cls, run: Any) -> "SyncRunResponse":
+        import json as _json
+        raw = getattr(run, "warning_messages", None)
+        warnings = _json.loads(raw) if raw else None
         return cls(
             id=run.id,
             sync_id=run.sync_id,
@@ -96,6 +100,7 @@ class SyncRunResponse(BaseModel):
             removed_count=getattr(run, "removed_count", None),
             links_fixed=getattr(run, "links_fixed", None),
             error_message=getattr(run, "error_message", None),
+            warning_messages=warnings,
         )
 
 

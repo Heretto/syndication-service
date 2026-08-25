@@ -68,6 +68,7 @@ class SyncRun(Base):
     removed_count = Column(Integer, nullable=True)
     links_fixed = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
+    warning_messages = Column(Text, nullable=True)  # JSON-serialised list[str]
 
     sync = relationship("SyncConfig", back_populates="runs")
 

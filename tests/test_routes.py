@@ -82,6 +82,7 @@ def _make_run(**overrides) -> MagicMock:
     run.removed_count = 3
     run.links_fixed = 10
     run.error_message = None
+    run.warning_messages = None
     for k, v in overrides.items():
         setattr(run, k, v)
     return run

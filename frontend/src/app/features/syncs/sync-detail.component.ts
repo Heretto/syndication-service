@@ -115,28 +115,35 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
           </div>
 
           <div class="run-list" *ngIf="runs.length > 0">
-            <div class="run-row" *ngFor="let r of runs">
-              <app-status-badge [status]="r.status"></app-status-badge>
-              <div class="run-info">
-                <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
-                <span *ngIf="r.completed_at" class="run-duration">
-                  Completed {{ r.completed_at | localDate:'h:mm a' }}
-                </span>
+            <div class="run-item" *ngFor="let r of runs">
+              <div class="run-row">
+                <app-status-badge [status]="r.status"></app-status-badge>
+                <div class="run-info">
+                  <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
+                  <span *ngIf="r.completed_at" class="run-duration">
+                    Completed {{ r.completed_at | localDate:'h:mm a' }}
+                  </span>
+                </div>
+                <div class="run-stats" *ngIf="r.changed_count != null || r.removed_count != null">
+                  <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">
+                    {{ r.changed_count }} changed
+                  </span>
+                  <span *ngIf="r.removed_count" class="stat-badge stat-removed">
+                    {{ r.removed_count }} removed
+                  </span>
+                </div>
               </div>
-              <div class="run-stats" *ngIf="r.changed_count != null || r.removed_count != null">
-                <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">
-                  {{ r.changed_count }} changed
-                </span>
-                <span *ngIf="r.removed_count" class="stat-badge stat-removed">
-                  {{ r.removed_count }} removed
-                </span>
+              <div class="run-messages" *ngIf="r.error_message || (r.warning_messages && r.warning_messages.length)">
+                <div class="run-msg run-msg-error" *ngIf="r.error_message">
+                  <mat-icon>error_outline</mat-icon>
+                  <span>{{ r.error_message }}</span>
+                </div>
+                <div class="run-msg run-msg-warning" *ngFor="let w of r.warning_messages">
+                  <mat-icon>warning_amber</mat-icon>
+                  <span>{{ w }}</span>
+                </div>
               </div>
             </div>
-          </div>
-
-          <div class="error-detail" *ngIf="lastError">
-            <mat-icon>error_outline</mat-icon>
-            <span class="error-text">{{ lastError }}</span>
           </div>
         </section>
       </div>
@@ -195,8 +202,9 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
     .runs-empty p { font-size: 13px; margin: 0; }
 
     .run-list { display: flex; flex-direction: column; }
-    .run-row { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid #f0f2f7; }
-    .run-row:last-child { border-bottom: none; }
+    .run-item { border-bottom: 1px solid #f0f2f7; }
+    .run-item:last-child { border-bottom: none; }
+    .run-row { display: flex; align-items: center; gap: 10px; padding: 10px 18px; }
     .run-info { flex: 1; display: flex; flex-direction: column; }
     .run-time { font-size: 12px; font-weight: 600; color: #1d1f2b; }
     .run-duration { font-size: 11px; color: #5e6e82; }
@@ -205,9 +213,13 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
     .stat-changed { background: rgba(0,82,204,0.1); color: #0052cc; }
     .stat-removed { background: rgba(222,53,11,0.1); color: #b22a09; }
 
-    .error-detail { display: flex; align-items: flex-start; gap: 8px; padding: 12px 18px; background: rgba(222,53,11,0.05); border-top: 1px solid rgba(222,53,11,0.15); }
-    .error-detail mat-icon { color: #de350b; font-size: 16px; width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
-    .error-text { font-size: 12px; color: #b22a09; line-height: 1.5; }
+    .run-messages { display: flex; flex-direction: column; gap: 2px; padding: 0 18px 10px 18px; }
+    .run-msg { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; line-height: 1.5; }
+    .run-msg mat-icon { font-size: 14px; width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; }
+    .run-msg-error { color: #b22a09; }
+    .run-msg-error mat-icon { color: #de350b; }
+    .run-msg-warning { color: #7c4000; }
+    .run-msg-warning mat-icon { color: #e65100; }
 
     .not-found { display: flex; flex-direction: column; align-items: center; padding: 80px 24px; text-align: center; color: #5e6e82; }
     .not-found mat-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
@@ -222,10 +234,6 @@ export class SyncDetailComponent implements OnInit {
   runs: SyncRun[] = [];
   loading = true;
   runsLoading = false;
-
-  get lastError(): string | null {
-    return this.runs.find(r => r.error_message)?.error_message ?? null;
-  }
 
   constructor(
     private syncService: SyncService,

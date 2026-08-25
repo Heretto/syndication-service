@@ -299,15 +299,18 @@ class SyncStateStore:
         changed_count: int,
         removed_count: int,
         links_fixed: int = 0,
+        warnings: list[str] | None = None,
     ) -> None:
         def _complete(db: Session) -> None:
+            status = "warning" if warnings else "success"
             db.query(SyncRun).filter(SyncRun.id == run_id).update(
                 {
-                    "status": "success",
+                    "status": status,
                     "completed_at": datetime.now(timezone.utc),
                     "changed_count": changed_count,
                     "removed_count": removed_count,
                     "links_fixed": links_fixed,
+                    "warning_messages": json.dumps(warnings) if warnings else None,
                 }
             )
 
