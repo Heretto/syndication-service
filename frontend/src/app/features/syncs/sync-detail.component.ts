@@ -12,13 +12,14 @@ import { SyncService, SyncConfig, SyncRun } from '../../core/services/sync.servi
 import { NotificationService } from '../../core/services/notification.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
 import { CronDisplayComponent } from '../../shared/components/cron-display/cron-display.component';
+import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 
 @Component({
   selector: 'app-sync-detail',
   imports: [
     CommonModule, RouterModule, MatButtonModule, MatIconModule,
     MatDialogModule, MatProgressSpinnerModule, MatTooltipModule,
-    StatusBadgeComponent, CronDisplayComponent,
+    StatusBadgeComponent, CronDisplayComponent, LocalDatePipe,
   ],
   template: `
     <div *ngIf="loading" class="loading-center">
@@ -90,11 +91,11 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
             </div>
             <div class="dl-row" *ngIf="sync.high_water_mark">
               <dt>Last Synced</dt>
-              <dd>{{ sync.high_water_mark | date:'MMM d, yyyy h:mm a' }}</dd>
+              <dd>{{ sync.high_water_mark | localDate:'MMM d, yyyy h:mm a' }}</dd>
             </div>
             <div class="dl-row" *ngIf="sync.created_at">
               <dt>Created</dt>
-              <dd>{{ sync.created_at | date:'MMM d, yyyy' }}</dd>
+              <dd>{{ sync.created_at | localDate:'MMM d, yyyy' }}</dd>
             </div>
           </dl>
         </section>
@@ -117,9 +118,9 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
             <div class="run-row" *ngFor="let r of runs">
               <app-status-badge [status]="r.status"></app-status-badge>
               <div class="run-info">
-                <span class="run-time">{{ r.started_at | date:'MMM d, h:mm a' }}</span>
+                <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
                 <span *ngIf="r.completed_at" class="run-duration">
-                  Completed {{ r.completed_at | date:'h:mm a' }}
+                  Completed {{ r.completed_at | localDate:'h:mm a' }}
                 </span>
               </div>
               <div class="run-stats" *ngIf="r.changed_count != null || r.removed_count != null">
