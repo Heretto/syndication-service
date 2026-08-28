@@ -86,6 +86,12 @@ class IRPage:
     prodinfos: list[dict] = field(default_factory=list)
     resource_ids: list[str] = field(default_factory=list)
 
+    # ── Structure metadata (force_full only) ──────────────────────────────────
+    # Populated from the /structure tree walk; empty on incremental runs.
+    section_path: list[str] = field(default_factory=list)
+    sort_order: int = 0                # 1-based position among topicref siblings
+    sibling_uuids: list[str] = field(default_factory=list)
+
     # ── Binary assets ─────────────────────────────────────────────────────────
     # Expiring JWT URLs extracted from html_body; must be fetched within the
     # same executor run that called get_page().

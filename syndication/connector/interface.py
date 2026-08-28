@@ -106,6 +106,19 @@ class ITargetConnector(ABC):
         ``upsert_article`` calls for a sync run have completed.
         """
 
+    async def sync_sibling_relationships(
+        self,
+        article_id: str,
+        sibling_ids: list[str],
+    ) -> None:
+        """Write cross-article sibling relationships to the target system.
+
+        Called once per article that has siblings, after all upserts complete.
+        ``sibling_ids`` contains the target system's article IDs of the siblings.
+        The default implementation is a no-op; override in connectors that
+        support relationship records (e.g. Salesforce Knowledge).
+        """
+
     async def sync_data_categories(
         self,
         article_id: str,

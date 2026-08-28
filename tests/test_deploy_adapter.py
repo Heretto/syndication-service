@@ -101,6 +101,54 @@ STRUCTURE_PAYLOAD = {
     ],
 }
 
+# Rich structure with titles on section/heading nodes for metadata tests
+RICH_STRUCTURE_PAYLOAD = {
+    "snapshotId": "snap-rich",
+    "type": "topicref",
+    "href": "/",
+    "sys": {"uuid": "root"},
+    "title": "",
+    "children": [
+        {
+            "type": "sitesection",
+            "href": "/",
+            "title": "Getting Started",
+            "sys": {"uuid": ""},
+            "children": [
+                {
+                    "type": "topicref",
+                    "href": "gs/intro",
+                    "title": "Introduction",
+                    "sys": {"uuid": "uuid-intro"},
+                    "children": [],
+                },
+                {
+                    "type": "topichead",
+                    "href": "/",
+                    "title": "Installation",
+                    "sys": {"uuid": ""},
+                    "children": [
+                        {
+                            "type": "topicref",
+                            "href": "gs/install/linux",
+                            "title": "Linux",
+                            "sys": {"uuid": "uuid-linux"},
+                            "children": [],
+                        },
+                        {
+                            "type": "topicref",
+                            "href": "gs/install/windows",
+                            "title": "Windows",
+                            "sys": {"uuid": "uuid-windows"},
+                            "children": [],
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}
+
 
 # ── DeployClient tests ────────────────────────────────────────────────────────
 
@@ -318,6 +366,7 @@ class TestDeployAdapter:
         assert mime == "application/pdf"
 
     async def test_get_all_from_structure_returns_changeset(self, adapter: DeployAdapter):
+        from syndication.source.deploy.adapter import StructureChangeSet
         with respx.mock(base_url=BASE_URL) as mock:
             mock.get(
                 f"/v4/deployments/{DEPLOYMENT_ID}/structure"
@@ -325,7 +374,7 @@ class TestDeployAdapter:
 
             cs = await adapter.get_all_from_structure()
 
-        assert isinstance(cs, ChangeSet)
+        assert isinstance(cs, StructureChangeSet)
         changed_uuids = {uuid for uuid, _ in cs.changed}
         assert changed_uuids == {"uuid-aaa", "uuid-bbb"}
 
@@ -463,7 +512,9 @@ class TestCollectTopics:
         }
         out = []
         DeployAdapter._collect_topics(node, out)
-        assert out == [("abc", "some/path")]
+        assert len(out) == 1
+        assert out[0].uuid == "abc"
+        assert out[0].href == "some/path"
 
     def test_skips_root_href(self):
         node = {
@@ -514,7 +565,9 @@ class TestCollectTopics:
         }
         out = []
         DeployAdapter._collect_topics(node, out)
-        assert out == [("child-uuid", "section/child")]
+        assert len(out) == 1
+        assert out[0].uuid == "child-uuid"
+        assert out[0].href == "section/child"
 
     def test_deep_nesting(self):
         node = {
@@ -546,7 +599,9 @@ class TestCollectTopics:
         }
         out = []
         DeployAdapter._collect_topics(node, out)
-        assert out == [("leaf-uuid", "tile-1/intro/leaf")]
+        assert len(out) == 1
+        assert out[0].uuid == "leaf-uuid"
+        assert out[0].href == "tile-1/intro/leaf"
 
     def test_multiple_topics_at_same_level(self):
         node = {
@@ -560,4 +615,289 @@ class TestCollectTopics:
         }
         out = []
         DeployAdapter._collect_topics(node, out)
-        assert {(u, h) for u, h in out} == {("uuid-a", "a"), ("uuid-b", "b")}
+        result_by_uuid = {e.uuid: e for e in out}
+        assert "uuid-a" in result_by_uuid
+        assert "uuid-b" in result_by_uuid
+        assert result_by_uuid["uuid-a"].href == "a"
+        assert result_by_uuid["uuid-b"].href == "b"
+
+
+# ── _collect_topics metadata tests ───────────────────────────────────────────
+
+class TestCollectTopicsMetadata:
+    """TDD tests for section_path, sort_order, and sibling_uuids on StructureEntry."""
+
+    # ── section_path ──────────────────────────────────────────────────────────
+
+    def test_root_level_topic_has_empty_section_path(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "title": "A", "sys": {"uuid": "uuid-a"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out[0].section_path == []
+
+    def test_topic_under_topichead_inherits_topichead_title(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {
+                    "type": "topichead", "href": "/", "title": "My Section",
+                    "sys": {"uuid": ""},
+                    "children": [
+                        {"type": "topicref", "href": "a", "title": "A", "sys": {"uuid": "uuid-a"}, "children": []},
+                    ],
+                }
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out[0].section_path == ["My Section"]
+
+    def test_topic_under_sitesection_inherits_sitesection_title(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {
+                    "type": "sitesection", "href": "/", "title": "Top Section",
+                    "sys": {"uuid": ""},
+                    "children": [
+                        {"type": "topicref", "href": "a", "title": "A", "sys": {"uuid": "uuid-a"}, "children": []},
+                    ],
+                }
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out[0].section_path == ["Top Section"]
+
+    def test_deeply_nested_topic_gets_full_ancestor_path(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {
+                    "type": "sitesection", "href": "/", "title": "Getting Started",
+                    "sys": {"uuid": ""},
+                    "children": [
+                        {
+                            "type": "topichead", "href": "/", "title": "Installation",
+                            "sys": {"uuid": ""},
+                            "children": [
+                                {"type": "topicref", "href": "install/linux", "title": "Linux",
+                                 "sys": {"uuid": "uuid-linux"}, "children": []},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out[0].section_path == ["Getting Started", "Installation"]
+
+    def test_topichead_with_missing_title_omitted_from_path(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {
+                    "type": "topichead", "href": "/", "title": "",
+                    "sys": {"uuid": ""},
+                    "children": [
+                        {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                    ],
+                }
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out[0].section_path == []
+
+    # ── sort_order ────────────────────────────────────────────────────────────
+
+    def test_first_topicref_sibling_has_sort_order_one(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                {"type": "topicref", "href": "b", "sys": {"uuid": "uuid-b"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        entry_a = next(e for e in out if e.uuid == "uuid-a")
+        assert entry_a.sort_order == 1
+
+    def test_second_topicref_sibling_has_sort_order_two(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                {"type": "topicref", "href": "b", "sys": {"uuid": "uuid-b"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        entry_b = next(e for e in out if e.uuid == "uuid-b")
+        assert entry_b.sort_order == 2
+
+    def test_topics_in_different_sections_have_independent_sort_order(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {
+                    "type": "topichead", "href": "/", "title": "Section A", "sys": {"uuid": ""},
+                    "children": [
+                        {"type": "topicref", "href": "a/1", "sys": {"uuid": "uuid-a1"}, "children": []},
+                        {"type": "topicref", "href": "a/2", "sys": {"uuid": "uuid-a2"}, "children": []},
+                    ],
+                },
+                {
+                    "type": "topichead", "href": "/", "title": "Section B", "sys": {"uuid": ""},
+                    "children": [
+                        {"type": "topicref", "href": "b/1", "sys": {"uuid": "uuid-b1"}, "children": []},
+                    ],
+                },
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        by_uuid = {e.uuid: e for e in out}
+        assert by_uuid["uuid-a1"].sort_order == 1
+        assert by_uuid["uuid-a2"].sort_order == 2
+        assert by_uuid["uuid-b1"].sort_order == 1
+
+    # ── sibling_uuids ─────────────────────────────────────────────────────────
+
+    def test_only_child_has_empty_sibling_uuids(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert out[0].sibling_uuids == []
+
+    def test_siblings_list_each_other(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                {"type": "topicref", "href": "b", "sys": {"uuid": "uuid-b"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        by_uuid = {e.uuid: e for e in out}
+        assert "uuid-b" in by_uuid["uuid-a"].sibling_uuids
+        assert "uuid-a" in by_uuid["uuid-b"].sibling_uuids
+
+    def test_sibling_uuids_excludes_self(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                {"type": "topicref", "href": "b", "sys": {"uuid": "uuid-b"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        entry_a = next(e for e in out if e.uuid == "uuid-a")
+        assert "uuid-a" not in entry_a.sibling_uuids
+
+    def test_topics_in_different_sections_are_not_siblings(self):
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+                {
+                    "type": "topichead", "href": "/", "title": "Section", "sys": {"uuid": ""},
+                    "children": [
+                        {"type": "topicref", "href": "b", "sys": {"uuid": "uuid-b"}, "children": []},
+                    ],
+                },
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        entry_a = next(e for e in out if e.uuid == "uuid-a")
+        assert "uuid-b" not in entry_a.sibling_uuids
+
+    def test_returns_structure_entry_instances(self):
+        from syndication.source.deploy.adapter import StructureEntry
+        node = {
+            "type": "topicref", "href": "/", "sys": {"uuid": "root"}, "title": "",
+            "children": [
+                {"type": "topicref", "href": "a", "sys": {"uuid": "uuid-a"}, "children": []},
+            ],
+        }
+        out = []
+        DeployAdapter._collect_topics(node, out)
+        assert isinstance(out[0], StructureEntry)
+
+
+# ── StructureChangeSet integration tests ─────────────────────────────────────
+
+class TestStructureChangeSet:
+    """Tests for get_all_from_structure() returning a StructureChangeSet with metadata."""
+
+    @pytest.fixture
+    def adapter(self) -> DeployAdapter:
+        return DeployAdapter(
+            org_id="testorg",
+            deployment_id=DEPLOYMENT_ID,
+            api_key=API_KEY,
+            audience="private",
+            base_url=BASE_URL,
+        )
+
+    async def test_entries_keyed_by_uuid(self, adapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/structure").mock(
+                return_value=httpx.Response(200, json=RICH_STRUCTURE_PAYLOAD)
+            )
+            cs = await adapter.get_all_from_structure()
+        assert "uuid-intro" in cs.entries
+        assert "uuid-linux" in cs.entries
+        assert "uuid-windows" in cs.entries
+
+    async def test_entries_section_path_from_sitesection_and_topichead(self, adapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/structure").mock(
+                return_value=httpx.Response(200, json=RICH_STRUCTURE_PAYLOAD)
+            )
+            cs = await adapter.get_all_from_structure()
+        assert cs.entries["uuid-linux"].section_path == ["Getting Started", "Installation"]
+        assert cs.entries["uuid-intro"].section_path == ["Getting Started"]
+
+    async def test_entries_sort_order(self, adapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/structure").mock(
+                return_value=httpx.Response(200, json=RICH_STRUCTURE_PAYLOAD)
+            )
+            cs = await adapter.get_all_from_structure()
+        assert cs.entries["uuid-linux"].sort_order == 1
+        assert cs.entries["uuid-windows"].sort_order == 2
+
+    async def test_entries_sibling_uuids(self, adapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/structure").mock(
+                return_value=httpx.Response(200, json=RICH_STRUCTURE_PAYLOAD)
+            )
+            cs = await adapter.get_all_from_structure()
+        assert "uuid-windows" in cs.entries["uuid-linux"].sibling_uuids
+        assert "uuid-linux" in cs.entries["uuid-windows"].sibling_uuids
+        assert cs.entries["uuid-intro"].sibling_uuids == []
+
+    async def test_changed_list_contains_all_topicref_uuids(self, adapter):
+        with respx.mock(base_url=BASE_URL) as mock:
+            mock.get(f"/v4/deployments/{DEPLOYMENT_ID}/structure").mock(
+                return_value=httpx.Response(200, json=RICH_STRUCTURE_PAYLOAD)
+            )
+            cs = await adapter.get_all_from_structure()
+        changed_uuids = {uuid for uuid, _ in cs.changed}
+        assert changed_uuids == {"uuid-intro", "uuid-linux", "uuid-windows"}

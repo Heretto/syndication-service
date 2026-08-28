@@ -65,6 +65,7 @@ def mock_connector():
     connector.archive_article = AsyncMock()
     connector.deferred_link_fixup = AsyncMock(return_value=2)
     connector.sync_data_categories = AsyncMock()
+    connector.sync_sibling_relationships = AsyncMock()
     return connector
 
 
@@ -318,14 +319,26 @@ class TestDataCategorySync:
 
 # ── Force full resync ─────────────────────────────────────────────────────────
 
+def _make_structure_cs(changed, *, removed_uuids=None, high_water_mark="", entries=None):
+    """Helper: build a StructureChangeSet for force_full mocks."""
+    from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+    if entries is None:
+        entries = {
+            uuid: StructureEntry(uuid=uuid, href=href, section_path=[], sort_order=i + 1, sibling_uuids=[])
+            for i, (uuid, href) in enumerate(changed)
+        }
+    return StructureChangeSet(
+        changed=changed,
+        removed_uuids=removed_uuids or [],
+        high_water_mark=high_water_mark,
+        entries=entries,
+    )
+
+
 class TestForceFullResync:
     async def test_force_full_calls_get_all_from_structure(self, mock_adapter, mock_connector):
         mock_adapter.get_all_from_structure = AsyncMock(
-            return_value=ChangeSet(
-                changed=[("uuid-a", "path/a")],
-                removed_uuids=[],
-                high_water_mark="",
-            )
+            return_value=_make_structure_cs([("uuid-a", "path/a")])
         )
         pipeline = SyncPipeline(
             adapter=mock_adapter,
@@ -339,7 +352,7 @@ class TestForceFullResync:
 
     async def test_force_full_does_not_call_get_changed(self, mock_adapter, mock_connector):
         mock_adapter.get_all_from_structure = AsyncMock(
-            return_value=ChangeSet(changed=[], removed_uuids=[], high_water_mark="")
+            return_value=_make_structure_cs([])
         )
         pipeline = SyncPipeline(
             adapter=mock_adapter,
@@ -352,7 +365,7 @@ class TestForceFullResync:
 
     async def test_force_full_high_water_mark_is_empty(self, mock_adapter, mock_connector):
         mock_adapter.get_all_from_structure = AsyncMock(
-            return_value=ChangeSet(changed=[], removed_uuids=[], high_water_mark="")
+            return_value=_make_structure_cs([])
         )
         pipeline = SyncPipeline(
             adapter=mock_adapter,
@@ -370,11 +383,7 @@ class TestForceFullResync:
 
     async def test_force_full_upserts_all_structure_pages(self, mock_adapter, mock_connector):
         mock_adapter.get_all_from_structure = AsyncMock(
-            return_value=ChangeSet(
-                changed=[("uuid-x", "path/x"), ("uuid-y", "path/y")],
-                removed_uuids=[],
-                high_water_mark="",
-            )
+            return_value=_make_structure_cs([("uuid-x", "path/x"), ("uuid-y", "path/y")])
         )
         pipeline = SyncPipeline(
             adapter=mock_adapter,
@@ -385,3 +394,187 @@ class TestForceFullResync:
 
         assert result.changed_count == 2
         assert mock_connector.upsert_article.await_count == 2
+
+
+# ── Structure enrichment fields ───────────────────────────────────────────────
+
+class TestStructureEnrichmentFields:
+    """During force_full runs, IRPages are enriched with section_path and sort_order
+    from the StructureChangeSet entries before being passed to upsert_article."""
+
+    async def test_upsert_receives_page_with_section_path(self, mock_adapter, mock_connector):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(
+                        uuid="uuid-a", href="path/a",
+                        section_path=["Getting Started", "Installation"],
+                        sort_order=1,
+                        sibling_uuids=[],
+                    )
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        page_arg = mock_connector.upsert_article.await_args_list[0].args[0]
+        assert page_arg.section_path == ["Getting Started", "Installation"]
+
+    async def test_upsert_receives_page_with_sort_order(self, mock_adapter, mock_connector):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a"), ("uuid-b", "path/b")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(uuid="uuid-a", href="path/a", section_path=[], sort_order=1, sibling_uuids=[]),
+                    "uuid-b": StructureEntry(uuid="uuid-b", href="path/b", section_path=[], sort_order=2, sibling_uuids=[]),
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        pages_by_uuid = {call.args[0].uuid: call.args[0] for call in mock_connector.upsert_article.await_args_list}
+        assert pages_by_uuid["uuid-a"].sort_order == 1
+        assert pages_by_uuid["uuid-b"].sort_order == 2
+
+    async def test_incremental_sync_pages_have_empty_section_path(self, pipeline, mock_connector):
+        await pipeline.run(run_id="r1", since=None, force_full=False)
+        for call in mock_connector.upsert_article.await_args_list:
+            assert call.args[0].section_path == []
+
+    async def test_incremental_sync_pages_have_zero_sort_order(self, pipeline, mock_connector):
+        await pipeline.run(run_id="r1", since=None, force_full=False)
+        for call in mock_connector.upsert_article.await_args_list:
+            assert call.args[0].sort_order == 0
+
+
+# ── Sibling relationship deferred pass ────────────────────────────────────────
+
+class TestSiblingRelationshipPass:
+    """After all articles are upserted during force_full, sibling UUIDs are resolved
+    to target article IDs and written via connector.sync_sibling_relationships()."""
+
+    async def test_sync_sibling_relationships_called_for_pages_with_siblings(
+        self, mock_adapter, mock_connector
+    ):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a"), ("uuid-b", "path/b")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(uuid="uuid-a", href="path/a", section_path=[], sort_order=1, sibling_uuids=["uuid-b"]),
+                    "uuid-b": StructureEntry(uuid="uuid-b", href="path/b", section_path=[], sort_order=2, sibling_uuids=["uuid-a"]),
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        assert mock_connector.sync_sibling_relationships.await_count == 2
+
+    async def test_sync_sibling_relationships_receives_resolved_target_ids(
+        self, mock_adapter, mock_connector
+    ):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a"), ("uuid-b", "path/b")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(uuid="uuid-a", href="path/a", section_path=[], sort_order=1, sibling_uuids=["uuid-b"]),
+                    "uuid-b": StructureEntry(uuid="uuid-b", href="path/b", section_path=[], sort_order=2, sibling_uuids=["uuid-a"]),
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        # upsert side_effect: target_article_id = f"target-{ir.uuid}"
+        # page uuid from get_page mock: f"uuid-{href.split('/')[-1]}" → uuid-a, uuid-b
+        calls_by_article = {
+            call.args[0]: call.args[1]
+            for call in mock_connector.sync_sibling_relationships.await_args_list
+        }
+        assert "target-uuid-b" in calls_by_article["target-uuid-a"]
+        assert "target-uuid-a" in calls_by_article["target-uuid-b"]
+
+    async def test_sync_sibling_relationships_not_called_when_no_siblings(
+        self, mock_adapter, mock_connector
+    ):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(uuid="uuid-a", href="path/a", section_path=[], sort_order=1, sibling_uuids=[]),
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        mock_connector.sync_sibling_relationships.assert_not_awaited()
+
+    async def test_sync_sibling_relationships_not_called_on_incremental_run(
+        self, pipeline, mock_connector
+    ):
+        await pipeline.run(run_id="r1", since=None, force_full=False)
+        mock_connector.sync_sibling_relationships.assert_not_awaited()
+
+    async def test_sync_sibling_relationships_failure_does_not_block_pipeline(
+        self, mock_adapter, mock_connector
+    ):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_connector.sync_sibling_relationships = AsyncMock(side_effect=Exception("SF error"))
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a"), ("uuid-b", "path/b")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(uuid="uuid-a", href="path/a", section_path=[], sort_order=1, sibling_uuids=["uuid-b"]),
+                    "uuid-b": StructureEntry(uuid="uuid-b", href="path/b", section_path=[], sort_order=2, sibling_uuids=["uuid-a"]),
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        result = await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        assert result.changed_count == 2
+        assert mock_connector.publish_article.await_count == 2
+
+    async def test_sibling_uuids_not_in_link_map_are_skipped(
+        self, mock_adapter, mock_connector
+    ):
+        from syndication.source.deploy.adapter import StructureChangeSet, StructureEntry
+        mock_adapter.get_all_from_structure = AsyncMock(
+            return_value=StructureChangeSet(
+                changed=[("uuid-a", "path/a")],
+                removed_uuids=[],
+                high_water_mark="",
+                entries={
+                    "uuid-a": StructureEntry(
+                        uuid="uuid-a", href="path/a",
+                        section_path=[], sort_order=1,
+                        sibling_uuids=["uuid-x"],  # uuid-x not in changeset
+                    ),
+                },
+            )
+        )
+        pipeline = SyncPipeline(adapter=mock_adapter, connector=mock_connector, mapping={"field": "value"})
+        await pipeline.run(run_id="r1", since=None, force_full=True)
+
+        mock_connector.sync_sibling_relationships.assert_not_awaited()

@@ -131,9 +131,18 @@ class SyncPipeline:
             changeset = await self._adapter.get_changed(since=since)
 
         # ── Stage 2: Fetch pages ──────────────────────────────────────────────
+        structure_entries = getattr(changeset, 'entries', {})
         pages: list[IRPage] = []
-        for _uuid, href in changeset.changed:
+        for uuid, href in changeset.changed:
             page = await self._adapter.get_page(href)
+            entry = structure_entries.get(uuid)
+            if entry is not None:
+                page = dataclasses.replace(
+                    page,
+                    section_path=entry.section_path,
+                    sort_order=entry.sort_order,
+                    sibling_uuids=entry.sibling_uuids,
+                )
             pages.append(page)
 
         # ── Stage 3: Map (sanitise HTML) ──────────────────────────────────────
@@ -194,6 +203,22 @@ class SyncPipeline:
                     run_warnings.append(msg)
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
+
+        # ── Stage 4.5: Deferred sibling relationship pass (force_full only) ──
+        if structure_entries:
+            for page in ready_pages:
+                if not page.sibling_uuids:
+                    continue
+                resolved = [link_map[u] for u in page.sibling_uuids if u in link_map]
+                if not resolved:
+                    continue
+                article_id = link_map.get(page.uuid)
+                if not article_id:
+                    continue
+                try:
+                    await self._connector.sync_sibling_relationships(article_id, resolved)
+                except Exception as exc:
+                    log.warning("Sibling relationship sync failed for %s: %s", article_id, exc)
 
         # ── Stage 5: Archive removed articles ────────────────────────────────
         archived_count = 0
