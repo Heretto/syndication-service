@@ -1,4 +1,4 @@
-@use '@heretto/hop-ui/theme' as hop;
+@use '@heretto/hop-ui/theme/index' as hop;
 
 @include hop.hop-core-theme();
 
