@@ -360,6 +360,57 @@ class TestUpsertArticle:
             with pytest.raises(httpx.HTTPStatusError):
                 await conn.upsert_article(page, FIELD_MAP)
 
+    # ── list field serialization ──────────────────────────────────────────────
+
+    async def test_list_field_joined_with_arrow_delimiter(self):
+        """section_path list is serialized as ' > '-delimited string."""
+        conn = _conn()
+        page = _make_ir_page(section_path=["Getting Started", "Installation"])
+        field_map = {**FIELD_MAP, "section_path": "Section_Path__c"}
+        with respx.mock() as mock:
+            patch_route = self._mock_create(mock)
+            await conn.upsert_article(page, field_map)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert payload.get("Section_Path__c") == "Getting Started > Installation"
+
+    async def test_empty_list_field_omitted_from_payload(self):
+        """An empty section_path must not appear in the PATCH payload."""
+        conn = _conn()
+        page = _make_ir_page(section_path=[])
+        field_map = {**FIELD_MAP, "section_path": "Section_Path__c"}
+        with respx.mock() as mock:
+            patch_route = self._mock_create(mock)
+            await conn.upsert_article(page, field_map)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert "Section_Path__c" not in payload
+
+    async def test_non_string_element_list_omitted_from_payload(self):
+        """A list whose first element is not a str is skipped silently."""
+        conn = _conn()
+        # Bypass type enforcement by passing ints in a list[str] field
+        page = _make_ir_page(section_path=[1, 2, 3])  # type: ignore[arg-type]
+        field_map = {**FIELD_MAP, "section_path": "Section_Path__c"}
+        with respx.mock() as mock:
+            patch_route = self._mock_create(mock)
+            await conn.upsert_article(page, field_map)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert "Section_Path__c" not in payload
+
+    async def test_single_element_section_path_not_delimited(self):
+        """A one-element path has no ' > ' separator."""
+        conn = _conn()
+        page = _make_ir_page(section_path=["Getting Started"])
+        field_map = {**FIELD_MAP, "section_path": "Section_Path__c"}
+        with respx.mock() as mock:
+            patch_route = self._mock_create(mock)
+            await conn.upsert_article(page, field_map)
+
+        payload = json.loads(patch_route.calls.last.request.content)
+        assert payload.get("Section_Path__c") == "Getting Started"
+
 
 # ── publish_article ───────────────────────────────────────────────────────────
 
