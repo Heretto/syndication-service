@@ -20,6 +20,7 @@ from syndication.state_store import SyncStateStore
 from syndication.services.sync_executor import SyncExecutorService
 from syndication.services.scheduler import SyncSchedulerService
 from syndication.routes.syncs import router as syncs_router
+from syndication.routes.fields import router as fields_router
 from syndication.factory import build_adapter, build_connector
 
 log = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ def _build_lifespan(hop_lifespan):
             # in production; create_all is safe for dev/test).
             session_factory = get_session_factory()
             store = SyncStateStore(session_factory=session_factory)
+            app.state.session_factory = session_factory
             executor = SyncExecutorService(
                 state_store=store,
                 settings=get_settings(),
@@ -79,6 +81,7 @@ def health():
 
 # Register syncs routes directly (avoids FastAPI 0.138 _IncludedRouter lazy-eval issue)
 app.include_router(syncs_router, prefix=get_settings().api_prefix)
+app.include_router(fields_router, prefix=get_settings().api_prefix)
 
 # Wrap hop-core's lifespan with our scheduler lifecycle
 _hop_lifespan = app.router.lifespan_context

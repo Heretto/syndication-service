@@ -13,6 +13,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
 import { CredentialService, Credential, CredentialCreate } from '../../core/services/credential.service';
+import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CronBuilderComponent } from '../../shared/components/cron-builder/cron-builder.component';
 
@@ -214,21 +215,6 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
           </p>
 
-          <!-- Reference: available Deploy fields (collapsible) -->
-          <div class="deploy-fields-ref">
-            <button type="button" class="ref-toggle" (click)="deployFieldsExpanded = !deployFieldsExpanded">
-              <span class="ref-label">Heretto Deploy fields you can map</span>
-              <mat-icon class="ref-chevron">{{ deployFieldsExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
-            </button>
-            <div class="ref-fields" *ngIf="deployFieldsExpanded">
-              <span class="ref-field"><code>title</code> — Article title</span>
-              <span class="ref-field"><code>short_description</code> — Brief summary or subtitle</span>
-              <span class="ref-field"><code>html_body</code> — Full article body (HTML)</span>
-              <span class="ref-field"><code>content_type</code> — DITA content type (Concept, Task, Reference)</span>
-              <span class="ref-field"><code>last_modified_iso</code> — Last modified timestamp (ISO 8601)</span>
-            </div>
-          </div>
-
           <!-- Column headers -->
           <div class="mapping-header" *ngIf="mappingArray.length > 0">
             <span class="mapping-col-label">Heretto Deploy Field</span>
@@ -240,20 +226,34 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
           <div formArrayName="mapping" class="mapping-list">
             <div *ngFor="let row of mappingArray.controls; let i = index"
                  [formGroupName]="i" class="mapping-row">
+
+              <!-- Left: Deploy IR field -->
               <mat-form-field appearance="outline" class="mapping-field">
                 <mat-select formControlName="ir_field" placeholder="Select Deploy field">
-                  <mat-option value="title">title — Article title</mat-option>
-                  <mat-option value="short_description">short_description — Summary</mat-option>
-                  <mat-option value="html_body">html_body — Article body (HTML)</mat-option>
-                  <mat-option value="content_type">content_type — DITA content type</mat-option>
-                  <mat-option value="last_modified_iso">last_modified_iso — Last modified</mat-option>
+                  <mat-option *ngFor="let f of sourceFields" [value]="f.key">
+                    {{ f.key }} — {{ f.label }}
+                  </mat-option>
                 </mat-select>
               </mat-form-field>
+
               <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+
+              <!-- Right: target field — dropdown when SF fields loaded, text input otherwise -->
               <mat-form-field appearance="outline" class="mapping-field">
                 <mat-label>{{ connectorFieldLabel }} Field</mat-label>
-                <input matInput formControlName="target_field" [placeholder]="targetFieldPlaceholder">
+                <mat-select *ngIf="targetFields.length > 0"
+                            formControlName="target_field"
+                            placeholder="Select field">
+                  <mat-option *ngFor="let f of targetFields" [value]="f.api_name">
+                    {{ f.label }} ({{ f.api_name }})
+                  </mat-option>
+                </mat-select>
+                <input *ngIf="targetFields.length === 0"
+                       matInput formControlName="target_field"
+                       [placeholder]="targetFieldPlaceholder">
+                <mat-hint *ngIf="targetFieldsLoading">Loading Salesforce fields…</mat-hint>
               </mat-form-field>
+
               <button mat-icon-button type="button" (click)="removeMappingRow(i)"
                       class="remove-row-btn" aria-label="Remove row">
                 <mat-icon>remove_circle_outline</mat-icon>
@@ -461,6 +461,7 @@ export class SyncFormComponent implements OnInit {
   private credService = inject(CredentialService);
   private notifications = inject(NotificationService);
   private router      = inject(Router);
+  private api         = inject(ApiService);
 
   isEdit   = false;
   saving   = false;
@@ -474,8 +475,10 @@ export class SyncFormComponent implements OnInit {
   newCredName   = '';
   newCredValues: Record<string, string> = {};
 
-  // Deploy fields reference panel
-  deployFieldsExpanded = false;
+  // Dynamic field lists
+  sourceFields: { key: string; label: string }[] = [];
+  targetFields: { api_name: string; label: string }[] = [];
+  targetFieldsLoading = false;
 
   form = this.fb.group({
     name:             ['', Validators.required],
@@ -542,12 +545,23 @@ export class SyncFormComponent implements OnInit {
           }
           this._loadCredentials(sync.connector_id);
           this._resetNewCredForm(sync.connector_id);
+          this._loadSourceFields();
+          if (sync.credential_id) {
+            this._loadTargetFields(sync.credential_id);
+          }
+          this.form.get('credential_id')!.valueChanges
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(credId => this._loadTargetFields(credId));
         });
     } else {
       const initialConnector = this.form.get('connector_id')!.value;
       this._applyDefaultMapping(initialConnector);
       this._loadCredentials(initialConnector);
       this._resetNewCredForm(initialConnector);
+      this._loadSourceFields();
+      this.form.get('credential_id')!.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(credId => this._loadTargetFields(credId));
 
       // Reload credentials and reset defaults when connector changes
       this.form.get('connector_id')!.valueChanges
@@ -558,6 +572,7 @@ export class SyncFormComponent implements OnInit {
           this.form.get('credential_id')!.setValue(null);
           this.showNewCred = false;
           this._resetNewCredForm(connectorId);
+          this.targetFields = [];
         });
 
       // Auto-populate mapping when a deployment is first connected
@@ -569,6 +584,29 @@ export class SyncFormComponent implements OnInit {
           }
         });
     }
+  }
+
+  private _loadSourceFields(): void {
+    this.api.get<{ key: string; label: string }[]>('/fields/source')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: fields => this.sourceFields = fields, error: () => {} });
+  }
+
+  private _loadTargetFields(credentialId: string | null): void {
+    const connectorId = this.form.get('connector_id')?.value;
+    if (!credentialId || connectorId !== 'salesforce') {
+      this.targetFields = [];
+      return;
+    }
+    this.targetFieldsLoading = true;
+    this.api.get<{ api_name: string; label: string }[]>('/fields/target', {
+      credential_id: credentialId,
+      connector_id: connectorId,
+    }).pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: fields => { this.targetFields = fields; this.targetFieldsLoading = false; },
+        error: () => { this.targetFields = []; this.targetFieldsLoading = false; },
+      });
   }
 
   private _loadCredentials(connectorId: string | null) {
