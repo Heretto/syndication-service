@@ -231,11 +231,18 @@ class SalesforceConnector(ITargetConnector):
         payload: dict[str, Any] = {}
         for ir_field, sf_field in mapping.items():
             value = getattr(ir, ir_field, None)
-            if value is not None:
+            if value is None:
+                continue
+            if isinstance(value, list):
+                # Serialize string lists (e.g. section_path) as " > " delimited text.
+                # Skip empty lists and non-string-element lists.
+                if not value or not isinstance(value[0], str):
+                    continue
+                value = " > ".join(value)
+            elif isinstance(value, str) and len(value) > 32000:
                 # Salesforce Rich Text Area fields cap at 32768 chars
-                if isinstance(value, str) and len(value) > 32000:
-                    value = value[:32000]
-                payload[sf_field] = value
+                value = value[:32000]
+            payload[sf_field] = value
 
         # 1. Query for any existing version by our tracking field
         soql = (
