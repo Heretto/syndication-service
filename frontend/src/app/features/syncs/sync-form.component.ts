@@ -11,6 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
 import { CredentialService, Credential, CredentialCreate } from '../../core/services/credential.service';
 import { ApiService } from '../../core/services/api.service';
@@ -61,7 +62,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
     MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatProgressSpinnerModule, MatDividerModule, MatTooltipModule,
-    CronBuilderComponent,
+    MatCheckboxModule, CronBuilderComponent,
   ],
   template: `
     <!-- Page banner -->
@@ -201,11 +202,17 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
         <!-- Schedule -->
         <section class="form-section">
           <h2 class="section-title">Schedule</h2>
-          <app-cron-builder formControlName="cron_expression"></app-cron-builder>
-          <mat-error *ngIf="form.get('cron_expression')?.hasError('required') && form.get('cron_expression')?.touched"
-                     style="font-size:12px;margin-top:4px">
-            Schedule is required
-          </mat-error>
+          <div class="manual-only-row">
+            <mat-checkbox formControlName="manual_only" color="primary">
+              Manual sync only — no automatic schedule
+            </mat-checkbox>
+            <p class="manual-only-hint" *ngIf="form.get('manual_only')?.value">
+              This sync will only run when triggered manually from the sync detail page.
+            </p>
+          </div>
+          <div *ngIf="!form.get('manual_only')?.value" class="cron-builder-wrap">
+            <app-cron-builder formControlName="cron_expression"></app-cron-builder>
+          </div>
         </section>
 
         <!-- Field mapping -->
@@ -444,6 +451,13 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
     .remove-row-btn { color: #de350b !important; flex-shrink: 0; }
     .add-row-btn { border-color: #dee2ec; color: #5e6e82; font-size: 12.5px; }
 
+    /* Manual-only schedule toggle */
+    .manual-only-row { margin-bottom: 4px; }
+    .manual-only-hint {
+      font-size: 12px; color: #5e6e82; margin: 6px 0 0 30px; line-height: 1.5;
+    }
+    .cron-builder-wrap { margin-top: 12px; }
+
     /* Actions */
     .form-actions {
       display: flex;
@@ -498,7 +512,8 @@ export class SyncFormComponent implements OnInit {
     connector_id:     ['salesforce', Validators.required],
     deployment_id:    [''],
     credential_id:    [null as string | null],
-    cron_expression:  ['0 9 * * *', Validators.required],
+    manual_only:      [false],
+    cron_expression:  ['0 9 * * *'],
     mapping:          this.fb.array<FormGroup>([]),
     category_mapping: this.fb.array<FormGroup>([]),
   });
@@ -535,13 +550,15 @@ export class SyncFormComponent implements OnInit {
       this.syncService.getById(id)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(sync => {
+          const isManualOnly = !sync.cron_expression;
           this.form.patchValue({
             name:            sync.name,
             adapter_id:      sync.adapter_id,
             connector_id:    sync.connector_id,
             deployment_id:   sync.deployment_id ?? '',
             credential_id:   sync.credential_id ?? null,
-            cron_expression: sync.cron_expression,
+            manual_only:     isManualOnly,
+            cron_expression: sync.cron_expression ?? '0 9 * * *',
           });
           const rawMapping = { ...(sync.mapping || {}) };
           const categoryMap = (rawMapping['category_map'] as Record<string, string>) || {};
@@ -761,11 +778,12 @@ export class SyncFormComponent implements OnInit {
     this.saving = true;
     const raw     = this.form.getRawValue();
     const mapping = this._buildMappingDict();
+    const cronExpression = raw.manual_only ? null : (raw.cron_expression || null);
 
     if (this.isEdit && this.editId) {
       const input: UpdateSyncInput = {
         name:            raw.name ?? undefined,
-        cron_expression: raw.cron_expression ?? undefined,
+        cron_expression: cronExpression,
         deployment_id:   raw.deployment_id || undefined,
         credential_id:   raw.credential_id || undefined,
         mapping,
@@ -785,7 +803,7 @@ export class SyncFormComponent implements OnInit {
         adapter_id:      raw.adapter_id!,
         connector_id:    raw.connector_id!,
         deployment_id:   raw.deployment_id ?? '',
-        cron_expression: raw.cron_expression!,
+        cron_expression: cronExpression,
         mapping,
         credential_id:   raw.credential_id || undefined,
       };

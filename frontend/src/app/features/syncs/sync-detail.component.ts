@@ -86,7 +86,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
               <dt>Schedule</dt>
               <dd>
                 <app-cron-display [expression]="sync.cron_expression"></app-cron-display>
-                <span class="cron-raw">({{ sync.cron_expression }})</span>
+                <span class="cron-raw" *ngIf="sync.cron_expression">({{ sync.cron_expression }})</span>
               </dd>
             </div>
             <div class="dl-row" *ngIf="sync.high_water_mark">

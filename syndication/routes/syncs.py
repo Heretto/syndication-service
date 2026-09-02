@@ -28,7 +28,7 @@ class CreateSyncRequest(BaseModel):
     adapter_id: str
     connector_id: str
     deployment_id: str
-    cron_expression: str
+    cron_expression: str | None = None
     mapping: dict[str, Any] = {}
     credential_id: str | None = None
 
@@ -48,7 +48,7 @@ class SyncConfigResponse(BaseModel):
     connector_id: str
     org_id: str
     deployment_id: str | None
-    cron_expression: str
+    cron_expression: str | None
     is_active: bool
     high_water_mark: str | None
     credential_id: str | None
@@ -183,7 +183,8 @@ def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
         mapping=body.mapping,
         credential_id=body.credential_id,
     )
-    _scheduler(request).add_schedule(cfg)
+    if cfg.cron_expression:
+        _scheduler(request).add_schedule(cfg)
     return SyncConfigResponse.from_model(cfg)
 
 
@@ -201,11 +202,15 @@ def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
     updates = body.model_dump(exclude_none=True)
+    # Allow explicitly clearing cron_expression to None (manual-only mode)
+    if "cron_expression" in body.model_fields_set and body.cron_expression is None:
+        updates["cron_expression"] = None
     cfg = _store(request).update_sync(sync_id, **updates)
-    # Reschedule if the cron expression changed
-    if body.cron_expression is not None:
+    # Reschedule whenever cron_expression was included in the request
+    if "cron_expression" in body.model_fields_set:
         _scheduler(request).remove_schedule(sync_id)
-        _scheduler(request).add_schedule(cfg)
+        if cfg.cron_expression:
+            _scheduler(request).add_schedule(cfg)
     return SyncConfigResponse.from_model(cfg)
 
 

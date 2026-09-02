@@ -34,7 +34,7 @@ class SyncConfig(Base):
     deployment_id = Column(String(255), nullable=True)
     # Soft reference to hop-core's credentials table (no FK — different domain).
     credential_id = Column(String(36), nullable=True)
-    cron_expression = Column(String(128), nullable=False)
+    cron_expression = Column(String(128), nullable=True)  # None = manual-only sync
     mapping_json = Column(Text, nullable=False, default="{}")
     is_active = Column(Boolean, nullable=False, default=True)
     high_water_mark = Column(String(64), nullable=True)  # ISO 8601 cursor

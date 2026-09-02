@@ -68,7 +68,10 @@ class SyncSchedulerService:
 
         Uses ``replace_existing=True`` so re-calling on the same sync
         safely updates the cron expression without raising a duplicate error.
+        No-ops for manual-only syncs (``cron_expression`` is None or empty).
         """
+        if not sync.cron_expression:
+            return
         trigger = CronTrigger.from_crontab(sync.cron_expression)
         self._scheduler.add_job(
             self._executor.execute,

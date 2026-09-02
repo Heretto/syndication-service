@@ -14,14 +14,18 @@ import cronstrue from 'cronstrue';
   `],
 })
 export class CronDisplayComponent implements OnChanges {
-  @Input() expression = '';
+  @Input() expression: string | null = '';
   humanReadable = '';
 
   ngOnChanges(): void {
+    if (!this.expression) {
+      this.humanReadable = 'Manual sync only';
+      return;
+    }
     try {
       this.humanReadable = cronstrue.toString(this.expression, { use24HourTimeFormat: false });
     } catch {
-      this.humanReadable = this.expression || '—';
+      this.humanReadable = this.expression;
     }
   }
 }
