@@ -81,6 +81,51 @@ async def get_target_fields(
     return fields
 
 
+@router.get("/categories/target")
+async def get_target_categories(
+    req: Request,
+    _ctx: OrgCtx,
+    credential_id: str,
+    connector_id: str,
+):
+    """Return Salesforce Data Category Groups for the given credential."""
+    if connector_id != "salesforce":
+        return []
+
+    try:
+        creds = _load_creds(credential_id, req.app.state.session_factory)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    instance_url = creds.get("instance_url", "").rstrip("/")
+    api_version = creds.get("api_version", "65.0")
+
+    try:
+        token = await _get_sf_token(creds, instance_url)
+        url = f"{instance_url}/services/data/v{api_version}/support/dataCategoryGroups"
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params={"sObjectName": "KnowledgeArticleVersion"},
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Salesforce category groups failed: {exc.response.status_code}",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Salesforce category groups failed: {exc}")
+
+    groups = [
+        {"name": g["name"], "label": g["label"]}
+        for g in resp.json().get("categoryGroups", [])
+    ]
+    groups.sort(key=lambda g: g["label"].lower())
+    return groups
+
+
 async def _get_sf_token(creds: dict, instance_url: str) -> str:
     if creds.get("access_token"):
         return creds["access_token"]

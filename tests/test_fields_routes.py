@@ -32,6 +32,15 @@ GOOD_CREDS = {
 }
 
 DESCRIBE_URL = f"{SF_INSTANCE}/services/data/v{API_VER}/sobjects/{KAV_TYPE}/describe"
+CATEGORIES_URL = f"{SF_INSTANCE}/services/data/v{API_VER}/support/dataCategoryGroups"
+
+CATEGORIES_PAYLOAD = {
+    "categoryGroups": [
+        {"name": "Topics",     "label": "Topics"},
+        {"name": "Audiences",  "label": "Audiences"},
+        {"name": "Regions__c", "label": "Regions"},
+    ]
+}
 
 # Minimal describe response from Salesforce
 DESCRIBE_PAYLOAD = {
@@ -264,3 +273,124 @@ class TestGetTargetFields:
                         params={"credential_id": "cred-1", "connector_id": "salesforce"},
                     )
         assert resp.status_code == 200
+
+
+# ── GET /fields/categories/target ─────────────────────────────────────────────
+
+class TestGetTargetCategories:
+    def _async_client(self, app):
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://testserver",
+        )
+
+    async def test_non_salesforce_connector_returns_empty(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value={}):
+            async with self._async_client(app) as client:
+                resp = await client.get(
+                    "/fields/categories/target",
+                    params={"credential_id": "cred-1", "connector_id": "noop"},
+                )
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_invalid_credential_returns_404(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", side_effect=ValueError("not found")):
+            async with self._async_client(app) as client:
+                resp = await client.get(
+                    "/fields/categories/target",
+                    params={"credential_id": "bad", "connector_id": "salesforce"},
+                )
+        assert resp.status_code == 404
+
+    async def test_sf_failure_returns_502(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+            async with self._async_client(app) as client:
+                with respx.mock() as mock:
+                    mock.get(CATEGORIES_URL).mock(return_value=httpx.Response(403))
+                    resp = await client.get(
+                        "/fields/categories/target",
+                        params={"credential_id": "cred-1", "connector_id": "salesforce"},
+                    )
+        assert resp.status_code == 502
+
+    async def test_returns_category_groups(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+            async with self._async_client(app) as client:
+                with respx.mock() as mock:
+                    mock.get(CATEGORIES_URL).mock(
+                        return_value=httpx.Response(200, json=CATEGORIES_PAYLOAD)
+                    )
+                    resp = await client.get(
+                        "/fields/categories/target",
+                        params={"credential_id": "cred-1", "connector_id": "salesforce"},
+                    )
+        assert resp.status_code == 200
+        names = {g["name"] for g in resp.json()}
+        assert names == {"Topics", "Audiences", "Regions__c"}
+
+    async def test_each_entry_has_name_and_label(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+            async with self._async_client(app) as client:
+                with respx.mock() as mock:
+                    mock.get(CATEGORIES_URL).mock(
+                        return_value=httpx.Response(200, json=CATEGORIES_PAYLOAD)
+                    )
+                    resp = await client.get(
+                        "/fields/categories/target",
+                        params={"credential_id": "cred-1", "connector_id": "salesforce"},
+                    )
+        for entry in resp.json():
+            assert "name" in entry
+            assert "label" in entry
+
+    async def test_results_sorted_by_label(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+            async with self._async_client(app) as client:
+                with respx.mock() as mock:
+                    mock.get(CATEGORIES_URL).mock(
+                        return_value=httpx.Response(200, json=CATEGORIES_PAYLOAD)
+                    )
+                    resp = await client.get(
+                        "/fields/categories/target",
+                        params={"credential_id": "cred-1", "connector_id": "salesforce"},
+                    )
+        labels = [g["label"] for g in resp.json()]
+        assert labels == sorted(labels, key=str.lower)
+
+    async def test_passes_knowledge_article_version_sobject(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+            async with self._async_client(app) as client:
+                with respx.mock() as mock:
+                    route = mock.get(CATEGORIES_URL).mock(
+                        return_value=httpx.Response(200, json={"categoryGroups": []})
+                    )
+                    await client.get(
+                        "/fields/categories/target",
+                        params={"credential_id": "cred-1", "connector_id": "salesforce"},
+                    )
+        assert route.called
+        sent_params = dict(route.calls.last.request.url.params)
+        assert sent_params.get("sObjectName") == "KnowledgeArticleVersion"
+
+    async def test_empty_org_returns_empty_list(self):
+        app = _make_app()
+        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+            async with self._async_client(app) as client:
+                with respx.mock() as mock:
+                    mock.get(CATEGORIES_URL).mock(
+                        return_value=httpx.Response(200, json={"categoryGroups": []})
+                    )
+                    resp = await client.get(
+                        "/fields/categories/target",
+                        params={"credential_id": "cred-1", "connector_id": "salesforce"},
+                    )
+        assert resp.status_code == 200
+        assert resp.json() == []

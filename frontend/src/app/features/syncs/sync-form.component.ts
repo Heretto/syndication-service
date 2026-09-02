@@ -278,7 +278,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
           <div class="mapping-header" *ngIf="categoryMapArray.length > 0">
             <span class="mapping-col-label">Deploy Taxonomy Group</span>
             <span class="mapping-arrow-spacer"></span>
-            <span class="mapping-col-label">SF Category Group API Name</span>
+            <span class="mapping-col-label">Salesforce Category Group</span>
             <span class="mapping-remove-spacer"></span>
           </div>
 
@@ -291,8 +291,18 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
               </mat-form-field>
               <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
               <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>SF Category Group API Name</mat-label>
-                <input matInput formControlName="sf_group" placeholder="e.g. Audiences">
+                <mat-label>Salesforce Category Group</mat-label>
+                <mat-select *ngIf="sfCategoryGroups.length > 0"
+                            formControlName="sf_group"
+                            placeholder="Select group">
+                  <mat-option *ngFor="let g of sfCategoryGroups" [value]="g.name">
+                    {{ g.label }} ({{ g.name }})
+                  </mat-option>
+                </mat-select>
+                <input *ngIf="sfCategoryGroups.length === 0"
+                       matInput formControlName="sf_group"
+                       placeholder="e.g. Audiences">
+                <mat-hint *ngIf="sfCategoryGroupsLoading">Loading Salesforce category groups…</mat-hint>
               </mat-form-field>
               <button mat-icon-button type="button" (click)="removeCategoryRow(i)"
                       class="remove-row-btn" aria-label="Remove row">
@@ -479,6 +489,8 @@ export class SyncFormComponent implements OnInit {
   sourceFields: { key: string; label: string }[] = [];
   targetFields: { api_name: string; label: string }[] = [];
   targetFieldsLoading = false;
+  sfCategoryGroups: { name: string; label: string }[] = [];
+  sfCategoryGroupsLoading = false;
 
   form = this.fb.group({
     name:             ['', Validators.required],
@@ -573,6 +585,7 @@ export class SyncFormComponent implements OnInit {
           this.showNewCred = false;
           this._resetNewCredForm(connectorId);
           this.targetFields = [];
+          this.sfCategoryGroups = [];
         });
 
       // Auto-populate mapping when a deployment is first connected
@@ -596,6 +609,7 @@ export class SyncFormComponent implements OnInit {
     const connectorId = this.form.get('connector_id')?.value;
     if (!credentialId || connectorId !== 'salesforce') {
       this.targetFields = [];
+      this.sfCategoryGroups = [];
       return;
     }
     this.targetFieldsLoading = true;
@@ -606,6 +620,16 @@ export class SyncFormComponent implements OnInit {
       .subscribe({
         next: fields => { this.targetFields = fields; this.targetFieldsLoading = false; },
         error: () => { this.targetFields = []; this.targetFieldsLoading = false; },
+      });
+
+    this.sfCategoryGroupsLoading = true;
+    this.api.get<{ name: string; label: string }[]>('/fields/categories/target', {
+      credential_id: credentialId,
+      connector_id: connectorId,
+    }).pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: groups => { this.sfCategoryGroups = groups; this.sfCategoryGroupsLoading = false; },
+        error: () => { this.sfCategoryGroups = []; this.sfCategoryGroupsLoading = false; },
       });
   }
 
