@@ -156,6 +156,11 @@ The web UI (Angular, port `4200` in development) provides:
 - **Run history** — per-run status, timestamps in the viewer's local timezone, article counts, and error messages
 - **Delete sync** — removes the sync and unregisters its schedule
 
+The UI includes two administration pages provided by the hop-core platform layer:
+
+- **Administration** (`/admin`) — organization management: members, invitations, and org settings. Visible to org admins and superusers.
+- **System Admin** (`/superadmin`) — currently shows the same organization management page as Administration. This page is reserved for platform-level superuser functionality. The Heretto team plans to add additional connector endpoints — such as ServiceNow and Zendesk — in the future; when that happens, System Admin will be where connector registration and cross-org configuration are managed. Until then, the two pages are intentionally identical.
+
 ---
 
 ## API Reference
