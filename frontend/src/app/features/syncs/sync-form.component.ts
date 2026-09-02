@@ -76,7 +76,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             <span class="bc-current">{{ isEdit ? 'Edit Sync' : 'New Sync' }}</span>
           </nav>
           <h1 class="banner-title">{{ isEdit ? 'Edit Sync' : 'Create Sync' }}</h1>
-          <p class="banner-subtitle">{{ isEdit ? 'Update sync configuration.' : 'Configure a new DITA-to-knowledge-base syndication sync.' }}</p>
+          <p class="banner-subtitle">{{ isEdit ? 'Update sync configuration.' : 'Configure a new Heretto to Knowledge Base syndication sync.' }}</p>
         </div>
       </div>
     </div>
@@ -121,7 +121,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Deployment ID</mat-label>
             <input matInput formControlName="deployment_id" placeholder="deployment-uuid">
-            <mat-hint>The UUID of the Heretto Deploy deployment to sync content from.</mat-hint>
+            <mat-hint>The Deployment ID for the content in Heretto.</mat-hint>
           </mat-form-field>
         </section>
 
@@ -231,7 +231,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
               <mat-form-field appearance="outline" class="mapping-field">
                 <mat-select formControlName="ir_field" placeholder="Select Deploy field">
                   <mat-option *ngFor="let f of sourceFields" [value]="f.key">
-                    {{ f.key }} — {{ f.label }}
+                    {{ f.label }} ({{ f.key }})
                   </mat-option>
                 </mat-select>
               </mat-form-field>
