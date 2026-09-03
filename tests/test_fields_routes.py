@@ -23,7 +23,7 @@ API_VER = "65.0"
 ACCESS_TOKEN = "test-token-xyz"
 KAV_TYPE = "Knowledge__kav"
 
-# Credentials dict that _load_creds would return for a Salesforce credential
+# Credentials dict that load_creds would return for a Salesforce credential
 GOOD_CREDS = {
     "instance_url": SF_INSTANCE,
     "api_version": API_VER,
@@ -123,7 +123,7 @@ class TestGetTargetFields:
 
     async def test_non_salesforce_connector_returns_empty(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value={}):
+        with patch("syndication.routes.fields.load_creds", return_value={}):
             async with self._async_client(app) as client:
                 resp = await client.get(
                     "/fields/target",
@@ -134,7 +134,7 @@ class TestGetTargetFields:
 
     async def test_invalid_credential_returns_404(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", side_effect=ValueError("not found")):
+        with patch("syndication.routes.fields.load_creds", side_effect=ValueError("not found")):
             async with self._async_client(app) as client:
                 resp = await client.get(
                     "/fields/target",
@@ -144,7 +144,7 @@ class TestGetTargetFields:
 
     async def test_sf_describe_failure_returns_502(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(401))
@@ -156,7 +156,7 @@ class TestGetTargetFields:
 
     async def test_returns_writable_fields(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -174,7 +174,7 @@ class TestGetTargetFields:
 
     async def test_excludes_id_type_fields(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -187,7 +187,7 @@ class TestGetTargetFields:
 
     async def test_excludes_reference_fields(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -200,7 +200,7 @@ class TestGetTargetFields:
 
     async def test_excludes_auto_number_fields(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -213,7 +213,7 @@ class TestGetTargetFields:
 
     async def test_excludes_calculated_fields(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -226,7 +226,7 @@ class TestGetTargetFields:
 
     async def test_results_sorted_by_label(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -239,7 +239,7 @@ class TestGetTargetFields:
 
     async def test_each_entry_has_api_name_and_label(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(DESCRIBE_URL).mock(return_value=httpx.Response(200, json=DESCRIBE_PAYLOAD))
@@ -261,7 +261,7 @@ class TestGetTargetFields:
         }
         app = _make_app()
         token_url = f"{SF_INSTANCE}/services/oauth2/token"
-        with patch("syndication.routes.fields._load_creds", return_value=oauth_creds):
+        with patch("syndication.routes.fields.load_creds", return_value=oauth_creds):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.post(token_url).mock(
@@ -286,7 +286,7 @@ class TestGetTargetCategories:
 
     async def test_non_salesforce_connector_returns_empty(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value={}):
+        with patch("syndication.routes.fields.load_creds", return_value={}):
             async with self._async_client(app) as client:
                 resp = await client.get(
                     "/fields/categories/target",
@@ -297,7 +297,7 @@ class TestGetTargetCategories:
 
     async def test_invalid_credential_returns_404(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", side_effect=ValueError("not found")):
+        with patch("syndication.routes.fields.load_creds", side_effect=ValueError("not found")):
             async with self._async_client(app) as client:
                 resp = await client.get(
                     "/fields/categories/target",
@@ -307,7 +307,7 @@ class TestGetTargetCategories:
 
     async def test_sf_failure_returns_502(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(CATEGORIES_URL).mock(return_value=httpx.Response(403))
@@ -319,7 +319,7 @@ class TestGetTargetCategories:
 
     async def test_returns_category_groups(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(CATEGORIES_URL).mock(
@@ -335,7 +335,7 @@ class TestGetTargetCategories:
 
     async def test_each_entry_has_name_and_label(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(CATEGORIES_URL).mock(
@@ -351,7 +351,7 @@ class TestGetTargetCategories:
 
     async def test_results_sorted_by_label(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(CATEGORIES_URL).mock(
@@ -366,7 +366,7 @@ class TestGetTargetCategories:
 
     async def test_passes_knowledge_article_version_sobject(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     route = mock.get(CATEGORIES_URL).mock(
@@ -382,7 +382,7 @@ class TestGetTargetCategories:
 
     async def test_empty_org_returns_empty_list(self):
         app = _make_app()
-        with patch("syndication.routes.fields._load_creds", return_value=GOOD_CREDS):
+        with patch("syndication.routes.fields.load_creds", return_value=GOOD_CREDS):
             async with self._async_client(app) as client:
                 with respx.mock() as mock:
                     mock.get(CATEGORIES_URL).mock(

@@ -46,7 +46,7 @@ class NoopConnector(ITargetConnector):
         self._upserted.add(ir.uuid)
         return UpsertResult(target_article_id=ir.uuid, created=created)
 
-    async def publish_article(self, target_article_id: str) -> None:
+    async def publish_article(self, target_article_id: str, was_online: bool = False) -> None:
         self.published_ids.add(target_article_id)
 
     async def archive_article(self, target_article_id: str) -> None:

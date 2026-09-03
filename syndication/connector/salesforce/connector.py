@@ -39,7 +39,7 @@ def _slugify(text: str) -> str:
 
 _VALID_SOURCE_FIELDS = frozenset({
     "title", "short_description", "html_body",
-    "content_type", "last_modified_iso", "section_path",
+    "content_type", "last_modified_iso", "section_path", "sort_order",
 })
 
 

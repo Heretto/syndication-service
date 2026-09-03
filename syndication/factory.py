@@ -27,7 +27,7 @@ CredentialTypeRegistry.register("salesforce", label="Salesforce Knowledge")
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _load_creds(credential_id: str | None, session_factory) -> dict:
+def load_creds(credential_id: str | None, session_factory) -> dict:
     """Load and decrypt a Credential record from the DB.
 
     Raises:
@@ -61,7 +61,7 @@ def build_adapter(cfg, session_factory) -> ISourceAdapter:
         ValueError: for unknown ``adapter_id`` or missing/invalid credential.
     """
     if cfg.adapter_id == "deploy":
-        creds = _load_creds(cfg.credential_id, session_factory)
+        creds = load_creds(cfg.credential_id, session_factory)
         settings = get_settings()
         return DeployAdapter(
             org_id=cfg.org_id,
@@ -71,14 +71,9 @@ def build_adapter(cfg, session_factory) -> ISourceAdapter:
             base_url=creds.get("base_url") or None,
         )
 
-    if cfg.adapter_id == "bundle":
-        # Bundle adapter is not yet implemented; credential loading deferred.
-        from syndication.source.bundle.adapter import BundleAdapter
-        return BundleAdapter()
-
     raise ValueError(
         f"Unknown adapter_id: {cfg.adapter_id!r}. "
-        f"Supported values: 'deploy', 'bundle'."
+        f"Supported values: 'deploy'."
     )
 
 
@@ -96,7 +91,7 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
         return NoopConnector()
 
     if cfg.connector_id == "salesforce":
-        creds = _load_creds(cfg.credential_id, session_factory)
+        creds = load_creds(cfg.credential_id, session_factory)
         return SalesforceConnector(
             instance_url=creds.get("instance_url", ""),
             api_version=creds.get("api_version", "65.0"),

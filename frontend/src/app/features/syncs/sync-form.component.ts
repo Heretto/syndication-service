@@ -103,7 +103,6 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
               <mat-label>Source Adapter</mat-label>
               <mat-select formControlName="adapter_id">
                 <mat-option value="deploy">Heretto Deploy</mat-option>
-                <mat-option value="bundle">Bundle (DITA archive)</mat-option>
               </mat-select>
             </mat-form-field>
             <mat-form-field appearance="outline" class="form-field">

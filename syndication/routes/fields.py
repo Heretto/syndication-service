@@ -7,7 +7,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from hop_core.api.dependencies import CurrentUserContext, get_current_active_user_with_org
-from syndication.factory import _load_creds
+from syndication.factory import load_creds
 
 router = APIRouter(prefix="/fields", tags=["fields"])
 
@@ -47,7 +47,7 @@ async def get_target_fields(
         return []
 
     try:
-        creds = _load_creds(credential_id, req.app.state.session_factory)
+        creds = load_creds(credential_id, req.app.state.session_factory)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -93,7 +93,7 @@ async def get_target_categories(
         return []
 
     try:
-        creds = _load_creds(credential_id, req.app.state.session_factory)
+        creds = load_creds(credential_id, req.app.state.session_factory)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

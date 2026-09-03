@@ -1,8 +1,8 @@
 """Target connector interface.
 
-Every knowledge-base target (Salesforce Knowledge, Zendesk, ServiceNow, …)
-must implement ``ITargetConnector``.  The pipeline uses only this interface;
-concrete connectors are selected at sync configuration time.
+Every knowledge-base target (e.g. Salesforce Knowledge) must implement
+``ITargetConnector``.  The pipeline uses only this interface; concrete
+connectors are selected at sync configuration time.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ class ITargetConnector(ABC):
     (e.g. ``"salesforce"``, ``"zendesk"``, ``"noop"``).
     """
 
-    connector_id: str  # override in each concrete subclass
+    connector_id: str  # override in each concrete subclass (e.g. "salesforce", "noop")
 
     @abstractmethod
     async def validate_mapping(self, mapping: dict) -> list[ValidationError]:

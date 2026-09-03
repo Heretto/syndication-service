@@ -86,6 +86,7 @@ class SyncExecutorService:
             connector = self._connector_factory(cfg)
             pipeline = SyncPipeline(adapter=adapter, connector=connector, mapping=mapping)
 
+            peek = None
             if force_full:
                 since = None
                 removed_target_ids = {}
@@ -114,7 +115,7 @@ class SyncExecutorService:
             for source_uuid, target_id in result.article_mappings.items():
                 self._store.save_article_mapping(sync_id, source_uuid, target_id)
 
-            if not force_full and peek.removed_uuids:
+            if peek and peek.removed_uuids:
                 self._store.mark_articles_archived(sync_id, peek.removed_uuids)
 
             self._store.complete_run(

@@ -229,6 +229,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 export class SyncDetailComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
+  private _pollTimer: ReturnType<typeof setTimeout> | null = null;
 
   sync: SyncConfig | null = null;
   runs: SyncRun[] = [];
@@ -240,7 +241,11 @@ export class SyncDetailComponent implements OnInit {
     private notifications: NotificationService,
     private dialog: MatDialog,
     private router: Router,
-  ) {}
+  ) {
+    this.destroyRef.onDestroy(() => {
+      if (this._pollTimer !== null) clearTimeout(this._pollTimer);
+    });
+  }
 
   ngOnInit() {
     const id = this.route.snapshot.paramMap.get('id')!;
@@ -306,7 +311,7 @@ export class SyncDetailComponent implements OnInit {
 
   private _startRunPolling(syncId: string, deadline = Date.now() + 10 * 60 * 1000): void {
     this.runsLoading = true;
-    setTimeout(() => {
+    this._pollTimer = setTimeout(() => {
       this.syncService.getRuns(syncId)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({

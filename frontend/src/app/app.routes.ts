@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
+import { superadminGuard } from './core/guards/superadmin.guard';
 import { ShellComponent } from './shell/shell.component';
 
 export const routes: Routes = [
@@ -74,7 +75,7 @@ export const routes: Routes = [
       },
       {
         path: 'superadmin',
-        canActivate: [adminGuard],
+        canActivate: [superadminGuard],
         loadComponent: () =>
           import('./features/admin/superadmin.component').then(m => m.SuperadminComponent),
       },
