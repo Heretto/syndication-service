@@ -52,7 +52,7 @@ def _make_session_factory(decrypted_creds: dict):
     return session_factory, mock_cred
 
 
-DEPLOY_CREDS = {"api_key": "deploy-key-abc", "audience": "private"}
+DEPLOY_CREDS = {"api_key": "deploy-key-abc"}
 SF_CREDS = {
     "instance_url": "https://myorg.my.salesforce.com",
     "api_version": "60.0",
@@ -72,10 +72,7 @@ class TestBuildAdapter:
         session.__enter__ = MagicMock(return_value=session)
         session.__exit__ = MagicMock(return_value=False)
         sf = MagicMock(return_value=session)
-        mock_settings = MagicMock()
-        mock_settings.deploy_default_audience = "private"
-        with patch("syndication.factory.decrypt_credentials", return_value=creds), \
-             patch("syndication.factory.get_settings", return_value=mock_settings):
+        with patch("syndication.factory.decrypt_credentials", return_value=creds):
             return build_adapter(cfg, sf)
 
     def test_deploy_returns_deploy_adapter(self):
