@@ -28,9 +28,12 @@ import { HopAdminComponent } from '@heretto/hop-ui';
       padding: 14px 18px;
       margin: 0 0 24px;
     }
-    :host-context([data-theme="dark"]) .future-targets-banner,
+    :host-context([data-theme="dark"]) .future-targets-banner {
+      background: rgba(100, 181, 246, 0.1);
+      border-color: rgba(100, 181, 246, 0.3);
+    }
     @media (prefers-color-scheme: dark) {
-      .future-targets-banner {
+      :host-context(:not([data-theme="light"])) .future-targets-banner {
         background: rgba(100, 181, 246, 0.1);
         border-color: rgba(100, 181, 246, 0.3);
       }
