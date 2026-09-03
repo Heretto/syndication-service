@@ -9,7 +9,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { HopConfirmDialogComponent } from '@heretto/hop-ui';
 import { interval, Subscription } from 'rxjs';
-import { switchMap, takeWhile } from 'rxjs/operators';
+import { switchMap } from 'rxjs/operators';
 import { SyncService, SyncConfig, SyncRun } from '../../core/services/sync.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
@@ -321,12 +321,13 @@ export class SyncDetailComponent implements OnInit {
 
     this._pollSub = interval(3000).pipe(
       switchMap(() => this.syncService.getRuns(syncId)),
-      takeWhile(runs => runs.some(r => r.status === 'running'), true),
     ).subscribe({
       next: runs => {
         this.runs = [...runs];
         if (!runs.some(r => r.status === 'running')) {
           this.runsLoading = false;
+          this._pollSub?.unsubscribe();
+          this._pollSub = null;
           // Refresh the sync config so high_water_mark / last synced updates
           this.syncService.getById(syncId)
             .pipe(takeUntilDestroyed(this.destroyRef))
@@ -334,7 +335,6 @@ export class SyncDetailComponent implements OnInit {
         }
       },
       error: () => { this.runsLoading = false; },
-      complete: () => { this.runsLoading = false; },
     });
   }
 
