@@ -90,10 +90,12 @@ class SyncPipeline:
         adapter: ISourceAdapter,
         connector: ITargetConnector,
         mapping: dict,
+        auto_publish: bool = True,
     ) -> None:
         self._adapter = adapter
         self._connector = connector
         self._mapping = mapping
+        self._auto_publish = auto_publish
 
     async def run(
         self,
@@ -194,7 +196,7 @@ class SyncPipeline:
                 msg = f"Category sync failed for {result.target_article_id}: {exc}"
                 log.warning(msg)
                 run_warnings.append(msg)
-            if not result.update_skipped:
+            if not result.update_skipped and self._auto_publish:
                 try:
                     await self._connector.publish_article(result.target_article_id, was_online=result.was_online)
                 except Exception as exc:

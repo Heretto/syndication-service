@@ -84,7 +84,12 @@ class SyncExecutorService:
             mapping = json.loads(cfg.mapping_json or "{}")
             adapter = self._adapter_factory(cfg)
             connector = self._connector_factory(cfg)
-            pipeline = SyncPipeline(adapter=adapter, connector=connector, mapping=mapping)
+            pipeline = SyncPipeline(
+                adapter=adapter,
+                connector=connector,
+                mapping=mapping,
+                auto_publish=getattr(cfg, "publish_mode", "auto") == "auto",
+            )
 
             peek = None
             if force_full:

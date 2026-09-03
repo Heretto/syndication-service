@@ -12,6 +12,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatRadioModule } from '@angular/material/radio';
 import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
 import { CredentialService, Credential, CredentialCreate } from '../../core/services/credential.service';
 import { ApiService } from '../../core/services/api.service';
@@ -62,7 +63,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
     MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatProgressSpinnerModule, MatDividerModule, MatTooltipModule,
-    MatCheckboxModule, CronBuilderComponent,
+    MatCheckboxModule, MatRadioModule, CronBuilderComponent,
   ],
   template: `
     <!-- Page banner -->
@@ -211,6 +212,20 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
           </div>
           <div *ngIf="!form.get('manual_only')?.value" class="cron-builder-wrap">
             <app-cron-builder formControlName="cron_expression"></app-cron-builder>
+          </div>
+
+          <div class="publish-mode-row">
+            <p class="publish-mode-label">Publish Mode</p>
+            <mat-radio-group formControlName="publish_mode" class="publish-mode-group">
+              <mat-radio-button value="auto" color="primary" class="publish-mode-option">
+                <span class="pm-option-title">Auto-publish</span>
+                <span class="pm-option-desc">Articles are published to Salesforce Knowledge immediately after sync.</span>
+              </mat-radio-button>
+              <mat-radio-button value="draft" color="primary" class="publish-mode-option">
+                <span class="pm-option-title">Save as draft</span>
+                <span class="pm-option-desc">Articles are saved as drafts and must be published manually in Salesforce.</span>
+              </mat-radio-button>
+            </mat-radio-group>
           </div>
         </section>
 
@@ -457,6 +472,14 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
     }
     .cron-builder-wrap { margin-top: 12px; }
 
+    /* Publish mode */
+    .publish-mode-row { margin-top: 20px; padding-top: 16px; border-top: 1px solid #f0f2f7; }
+    .publish-mode-label { font-size: 12px; font-weight: 600; color: #3b4563; text-transform: uppercase; letter-spacing: 0.4px; margin: 0 0 10px; }
+    .publish-mode-group { display: flex; flex-direction: column; gap: 10px; }
+    .publish-mode-option { display: flex; align-items: flex-start; }
+    .pm-option-title { font-size: 13.5px; font-weight: 600; color: #1d1f2b; display: block; }
+    .pm-option-desc { font-size: 12px; color: #5e6e82; display: block; margin-top: 2px; line-height: 1.4; }
+
     /* Actions */
     .form-actions {
       display: flex;
@@ -513,6 +536,7 @@ export class SyncFormComponent implements OnInit {
     credential_id:    [null as string | null],
     manual_only:      [false],
     cron_expression:  ['0 9 * * *'],
+    publish_mode:     ['auto'],
     mapping:          this.fb.array<FormGroup>([]),
     category_mapping: this.fb.array<FormGroup>([]),
   });
@@ -558,6 +582,7 @@ export class SyncFormComponent implements OnInit {
             credential_id:   sync.credential_id ?? null,
             manual_only:     isManualOnly,
             cron_expression: sync.cron_expression ?? '0 9 * * *',
+            publish_mode:    sync.publish_mode ?? 'auto',
           });
           const rawMapping = { ...(sync.mapping || {}) };
           const categoryMap = (rawMapping['category_map'] as Record<string, string>) || {};
@@ -786,6 +811,7 @@ export class SyncFormComponent implements OnInit {
         deployment_id:   raw.deployment_id || undefined,
         credential_id:   raw.credential_id || undefined,
         mapping,
+        publish_mode:    raw.publish_mode ?? 'auto',
       };
       this.syncService.update(this.editId, input)
         .pipe(takeUntilDestroyed(this.destroyRef))
@@ -805,6 +831,7 @@ export class SyncFormComponent implements OnInit {
         cron_expression: cronExpression,
         mapping,
         credential_id:   raw.credential_id || undefined,
+        publish_mode:    raw.publish_mode ?? 'auto',
       };
       this.syncService.create(input)
         .pipe(takeUntilDestroyed(this.destroyRef))

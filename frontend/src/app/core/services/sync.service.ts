@@ -10,6 +10,7 @@ export interface SyncConfig {
   org_id: string;
   deployment_id: string | null;
   cron_expression: string | null;
+  publish_mode: string;
   is_active: boolean;
   high_water_mark: string | null;
   credential_id: string | null;
@@ -38,6 +39,7 @@ export interface CreateSyncInput {
   cron_expression?: string | null;
   mapping?: Record<string, unknown>;
   credential_id?: string;
+  publish_mode?: string;
 }
 
 export interface UpdateSyncInput {
@@ -46,6 +48,7 @@ export interface UpdateSyncInput {
   deployment_id?: string;
   credential_id?: string;
   mapping?: Record<string, unknown>;
+  publish_mode?: string;
 }
 
 @Injectable({ providedIn: 'root' })

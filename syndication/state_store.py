@@ -57,6 +57,7 @@ class SyncStateStore:
         cron_expression: str,
         mapping: dict | None = None,
         credential_id: str | None = None,
+        publish_mode: str = "auto",
     ) -> SyncConfig:
         db = self._session()
         try:
@@ -67,6 +68,7 @@ class SyncStateStore:
                 org_id=org_id,
                 deployment_id=deployment_id,
                 cron_expression=cron_expression,
+                publish_mode=publish_mode,
                 mapping_json=json.dumps(mapping or {}),
                 credential_id=credential_id,
             )
@@ -114,6 +116,7 @@ class SyncStateStore:
         deployment_id: str | None = _UNSET,
         credential_id: str | None = _UNSET,
         mapping: dict | None = _UNSET,
+        publish_mode: str | None = _UNSET,
     ) -> SyncConfig:
         db = self._session()
         try:
@@ -130,6 +133,8 @@ class SyncStateStore:
                 cfg.credential_id = credential_id
             if mapping is not _UNSET:
                 cfg.mapping_json = json.dumps(mapping)
+            if publish_mode is not _UNSET:
+                cfg.publish_mode = publish_mode
             cfg.updated_at = datetime.now(timezone.utc)
             db.commit()
             db.refresh(cfg)

@@ -27,6 +27,9 @@ OrgCtx = Annotated[CurrentUserContext, Depends(get_current_active_user_with_org)
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
+_VALID_PUBLISH_MODES = frozenset({"auto", "draft"})
+
+
 class CreateSyncRequest(BaseModel):
     name: str
     adapter_id: str
@@ -35,6 +38,7 @@ class CreateSyncRequest(BaseModel):
     cron_expression: str | None = None
     mapping: dict[str, Any] = {}
     credential_id: str | None = None
+    publish_mode: str = "auto"
 
 
 class UpdateSyncRequest(BaseModel):
@@ -43,6 +47,7 @@ class UpdateSyncRequest(BaseModel):
     deployment_id: str | None = None
     credential_id: str | None = None
     mapping: dict[str, Any] | None = None
+    publish_mode: str | None = None
 
 
 class SyncConfigResponse(BaseModel):
@@ -53,6 +58,7 @@ class SyncConfigResponse(BaseModel):
     org_id: str
     deployment_id: str | None
     cron_expression: str | None
+    publish_mode: str
     is_active: bool
     high_water_mark: str | None
     credential_id: str | None
@@ -69,6 +75,7 @@ class SyncConfigResponse(BaseModel):
             org_id=cfg.org_id,
             deployment_id=cfg.deployment_id,
             cron_expression=cfg.cron_expression,
+            publish_mode=getattr(cfg, "publish_mode", "auto") or "auto",
             is_active=cfg.is_active,
             high_water_mark=cfg.high_water_mark,
             credential_id=getattr(cfg, "credential_id", None),
@@ -153,6 +160,14 @@ def _validate_cron(cron_expression: str | None) -> None:
             )
 
 
+def _validate_publish_mode(publish_mode: str | None) -> None:
+    if publish_mode is not None and publish_mode not in _VALID_PUBLISH_MODES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid publish_mode {publish_mode!r}. Valid values: auto, draft.",
+        )
+
+
 def _validate_mapping(connector_id: str, mapping: dict) -> None:
     """Raise 422 if *mapping* contains unknown source field keys (non-noop only)."""
     if connector_id == "noop" or not mapping:
@@ -215,6 +230,7 @@ def list_syncs(request: Request, context: OrgCtx):
 def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
     """Create a new sync configuration and register it with the scheduler."""
     _validate_cron(body.cron_expression)
+    _validate_publish_mode(body.publish_mode)
     _validate_mapping(body.connector_id, body.mapping)
     org_id = str(context.organization_id)
     cfg = _store(request).create_sync(
@@ -226,6 +242,7 @@ def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
         cron_expression=body.cron_expression,
         mapping=body.mapping,
         credential_id=body.credential_id,
+        publish_mode=body.publish_mode,
     )
     if cfg.cron_expression:
         _scheduler(request).add_schedule(cfg)
@@ -244,6 +261,7 @@ def get_sync(request: Request, sync_id: str, context: OrgCtx):
 def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context: OrgCtx):
     """Update mutable fields of an existing sync configuration."""
     _validate_cron(body.cron_expression)
+    _validate_publish_mode(body.publish_mode)
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
     if body.mapping is not None:
