@@ -99,7 +99,10 @@ class SyncStateStore:
             q = db.query(SyncConfig).filter(SyncConfig.is_active.is_(True))
             if org_id is not None:
                 q = q.filter(SyncConfig.org_id == org_id)
-            return q.all()
+            results = q.all()
+            for obj in results:
+                db.expunge(obj)
+            return results
         finally:
             db.close()
 
@@ -255,7 +258,10 @@ class SyncStateStore:
             )
             if status is not None:
                 q = q.filter(SyncRecord.status == status)
-            return q.limit(limit).all()
+            results = q.limit(limit).all()
+            for obj in results:
+                db.expunge(obj)
+            return results
         finally:
             db.close()
 
@@ -294,7 +300,10 @@ class SyncStateStore:
     def get_run(self, run_id: str) -> SyncRun | None:
         db = self._session()
         try:
-            return db.query(SyncRun).filter(SyncRun.id == run_id).first()
+            run = db.query(SyncRun).filter(SyncRun.id == run_id).first()
+            if run is not None:
+                db.expunge(run)
+            return run
         finally:
             db.close()
 
@@ -336,12 +345,15 @@ class SyncStateStore:
     def list_runs(self, sync_id: str, limit: int = 20) -> list[SyncRun]:
         db = self._session()
         try:
-            return (
+            results = (
                 db.query(SyncRun)
                 .filter(SyncRun.sync_id == sync_id)
                 .order_by(SyncRun.started_at.desc())
                 .limit(limit)
                 .all()
             )
+            for obj in results:
+                db.expunge(obj)
+            return results
         finally:
             db.close()
