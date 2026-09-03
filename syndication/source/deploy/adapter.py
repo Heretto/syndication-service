@@ -241,7 +241,7 @@ class DeployAdapter(ISourceAdapter):
             .get("lastModified", {})
             .get("value", "0")
         )
-        last_modified_ms = int(last_mod_str)
+        last_modified_ms = int(last_mod_str or "0")
         last_modified_iso = datetime.fromtimestamp(
             last_modified_ms / 1000, tz=timezone.utc
         ).strftime("%Y-%m-%dT%H:%M:%S.") + f"{last_modified_ms % 1000:03d}Z"

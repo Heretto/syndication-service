@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 from typing import Annotated, Any
 
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
 from hop_core.api.dependencies import CurrentUserContext, get_current_active_user_with_org
@@ -135,6 +135,12 @@ class TriggerResponse(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+_VALID_SOURCE_FIELDS: frozenset[str] = frozenset({
+    "title", "short_description", "html_body",
+    "content_type", "last_modified_iso", "section_path",
+})
+
+
 def _validate_cron(cron_expression: str | None) -> None:
     """Raise 422 if *cron_expression* is non-null and not a valid crontab string."""
     if cron_expression:
@@ -145,6 +151,21 @@ def _validate_cron(cron_expression: str | None) -> None:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Invalid cron expression: {exc}",
             )
+
+
+def _validate_mapping(connector_id: str, mapping: dict) -> None:
+    """Raise 422 if *mapping* contains unknown source field keys (non-noop only)."""
+    if connector_id == "noop" or not mapping:
+        return
+    invalid = sorted(set(mapping) - _VALID_SOURCE_FIELDS)
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Unknown source field(s): {', '.join(invalid)}. "
+                f"Valid fields: {', '.join(sorted(_VALID_SOURCE_FIELDS))}."
+            ),
+        )
 
 
 # ── Dependency helpers ────────────────────────────────────────────────────────
@@ -191,6 +212,7 @@ def list_syncs(request: Request, context: OrgCtx):
 def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
     """Create a new sync configuration and register it with the scheduler."""
     _validate_cron(body.cron_expression)
+    _validate_mapping(body.connector_id, body.mapping)
     org_id = str(context.organization_id)
     cfg = _store(request).create_sync(
         name=body.name,
@@ -221,6 +243,8 @@ def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context
     _validate_cron(body.cron_expression)
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
+    if body.mapping is not None:
+        _validate_mapping(cfg.connector_id, body.mapping)
     updates = body.model_dump(exclude_none=True)
     # Allow explicitly clearing cron_expression to None (manual-only mode)
     if "cron_expression" in body.model_fields_set and body.cron_expression is None:
@@ -245,7 +269,7 @@ def delete_sync(request: Request, sync_id: str, context: OrgCtx):
 
 
 @router.get("/{sync_id}/runs", response_model=list[SyncRunResponse])
-def list_runs(request: Request, sync_id: str, context: OrgCtx, limit: int = 20):
+def list_runs(request: Request, sync_id: str, context: OrgCtx, limit: Annotated[int, Query(ge=1, le=500)] = 20):
     """List recent runs for a sync."""
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
@@ -259,7 +283,7 @@ def list_records(
     sync_id: str,
     context: OrgCtx,
     record_status: str | None = None,
-    limit: int = 100,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     """List synced article records for a sync.
 

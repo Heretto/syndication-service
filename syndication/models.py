@@ -11,7 +11,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Integer, String, Text, Boolean, ForeignKey
+from sqlalchemy import Column, DateTime, Integer, String, Text, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from hop_core.db import Base
@@ -93,6 +93,6 @@ class SyncRecord(Base):
     sync = relationship("SyncConfig", back_populates="records")
 
     __table_args__ = (
-        # one row per (sync_id, source_uuid)
+        UniqueConstraint("sync_id", "source_uuid", name="uq_sync_record"),
         {"sqlite_autoincrement": False},
     )

@@ -10,15 +10,15 @@ RUN pip install --no-cache-dir /hop-core
 # Copy and install the syndication service
 COPY syndication-service/ /app/
 RUN pip install --no-cache-dir \
-    apscheduler \
-    "httpx>=0.27.0" \
-    "uvicorn[standard]" \
-    lxml \
-    python-multipart \
-    python-dotenv \
-    alembic \
-    "slowapi>=0.1.9" \
-    pyyaml
+    "apscheduler==3.10.4" \
+    "httpx==0.27.0" \
+    "uvicorn[standard]==0.29.0" \
+    "lxml==5.2.1" \
+    "python-multipart==0.0.9" \
+    "python-dotenv==1.0.1" \
+    "alembic==1.13.3" \
+    "slowapi==0.1.9" \
+    "pyyaml==6.0.2"
 
 # Install the package itself (makes `syndication` importable)
 RUN pip install --no-cache-dir -e .

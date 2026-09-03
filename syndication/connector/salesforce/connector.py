@@ -37,14 +37,10 @@ def _slugify(text: str) -> str:
     return text[:255] or "article"
 
 
-_REQUIRED_MAPPING_KEYS = [
-    "sf_instance_url",
-    "sf_api_version",
-    "sf_knowledge_type",
-    "sf_external_id_field",
-    "sf_access_token",
-    "field_map",
-]
+_VALID_SOURCE_FIELDS = frozenset({
+    "title", "short_description", "html_body",
+    "content_type", "last_modified_iso", "section_path",
+})
 
 
 class SalesforceConnector(ITargetConnector):
@@ -142,11 +138,11 @@ class SalesforceConnector(ITargetConnector):
 
     async def validate_mapping(self, mapping: dict) -> list[ValidationError]:
         errors: list[ValidationError] = []
-        for key in _REQUIRED_MAPPING_KEYS:
-            if key not in mapping:
-                errors.append(
-                    ValidationError(field=key, message=f"Required mapping key {key!r} is missing.")
-                )
+        invalid = sorted(set(mapping) - _VALID_SOURCE_FIELDS)
+        for key in invalid:
+            errors.append(
+                ValidationError(field=key, message=f"{key!r} is not a valid source field.")
+            )
         return errors
 
     async def sanitize_html(self, html: str) -> str:

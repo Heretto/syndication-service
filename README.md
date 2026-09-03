@@ -195,7 +195,8 @@ cd frontend
 npm install
 npm start          # http://localhost:4200, proxies /api → :8000
 
-# Database migrations
+# Database migrations (SQLite by default — dev only)
+# Set DATABASE_URL=postgresql+psycopg2://... for production
 alembic upgrade head
 
 # Tests

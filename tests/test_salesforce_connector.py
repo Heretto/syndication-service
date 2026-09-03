@@ -32,22 +32,10 @@ FIELD_MAP = {
     "html_body": "Answer__c",
 }
 
-REQUIRED_MAPPING_KEYS = [
-    "sf_instance_url",
-    "sf_api_version",
-    "sf_knowledge_type",
-    "sf_external_id_field",
-    "sf_access_token",
-    "field_map",
-]
-
 GOOD_MAPPING = {
-    "sf_instance_url": SF_INSTANCE,
-    "sf_api_version": API_VER,
-    "sf_knowledge_type": KAV_TYPE,
-    "sf_external_id_field": EXT_FIELD,
-    "sf_access_token": ACCESS_TOKEN,
-    "field_map": FIELD_MAP,
+    "title": "Title",
+    "html_body": "Answer__c",
+    "short_description": "Summary__c",
 }
 
 
@@ -118,34 +106,37 @@ class TestValidateMapping:
         errors = await conn.validate_mapping(GOOD_MAPPING)
         assert errors == []
 
-    async def test_missing_instance_url_returns_error(self):
+    async def test_empty_mapping_returns_empty(self):
         conn = _conn()
-        mapping = {**GOOD_MAPPING}
-        del mapping["sf_instance_url"]
+        errors = await conn.validate_mapping({})
+        assert errors == []
+
+    async def test_unknown_source_field_returns_error(self):
+        conn = _conn()
+        mapping = {**GOOD_MAPPING, "sf_instance_url": "https://bogus.salesforce.com"}
         errors = await conn.validate_mapping(mapping)
         assert any(e.field == "sf_instance_url" for e in errors)
 
-    async def test_missing_access_token_returns_error(self):
+    async def test_multiple_unknown_fields_each_produce_error(self):
         conn = _conn()
-        mapping = {**GOOD_MAPPING}
-        del mapping["sf_access_token"]
+        mapping = {"bad_field_a": "FieldA__c", "bad_field_b": "FieldB__c"}
         errors = await conn.validate_mapping(mapping)
-        assert any(e.field == "sf_access_token" for e in errors)
+        fields_with_errors = {e.field for e in errors}
+        assert "bad_field_a" in fields_with_errors
+        assert "bad_field_b" in fields_with_errors
 
-    async def test_missing_field_map_returns_error(self):
+    async def test_all_valid_source_fields_accepted(self):
         conn = _conn()
-        mapping = {**GOOD_MAPPING}
-        del mapping["field_map"]
+        mapping = {
+            "title": "Title",
+            "short_description": "Summary__c",
+            "html_body": "Answer__c",
+            "content_type": "Type__c",
+            "last_modified_iso": "LastModified__c",
+            "section_path": "SectionPath__c",
+        }
         errors = await conn.validate_mapping(mapping)
-        assert any(e.field == "field_map" for e in errors)
-
-    async def test_all_required_keys_validated(self):
-        conn = _conn()
-        for key in REQUIRED_MAPPING_KEYS:
-            m = {**GOOD_MAPPING}
-            del m[key]
-            errors = await conn.validate_mapping(m)
-            assert len(errors) >= 1, f"Missing key {key!r} should produce at least one error"
+        assert errors == []
 
 
 # ── sanitize_html ─────────────────────────────────────────────────────────────
