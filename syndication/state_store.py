@@ -86,7 +86,10 @@ class SyncStateStore:
     def get_sync(self, sync_id: str) -> SyncConfig | None:
         db = self._session()
         try:
-            return db.query(SyncConfig).filter(SyncConfig.id == sync_id).first()
+            cfg = db.query(SyncConfig).filter(SyncConfig.id == sync_id).first()
+            if cfg is not None:
+                db.expunge(cfg)
+            return cfg
         finally:
             db.close()
 

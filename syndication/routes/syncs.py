@@ -7,7 +7,10 @@ Every route requires a valid JWT with an associated organisation.
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import datetime
+
+log = logging.getLogger(__name__)
 from typing import Annotated, Any
 
 from apscheduler.triggers.cron import CronTrigger
@@ -279,7 +282,10 @@ async def trigger_sync(request: Request, sync_id: str, context: OrgCtx, force_fu
     _assert_same_org(cfg, context)
     executor = _executor(request)
     # Fire-and-forget: don't wait for completion
-    asyncio.ensure_future(executor.execute(sync_id, force_full=force_full))
+    task = asyncio.create_task(executor.execute(sync_id, force_full=force_full))
+    task.add_done_callback(
+        lambda t: t.exception() and log.error("Trigger task failed for sync %s: %s", sync_id, t.exception())
+    )
     return TriggerResponse(
         sync_id=sync_id,
         message="Full resync triggered." if force_full else "Sync triggered.",

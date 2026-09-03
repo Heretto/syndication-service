@@ -168,7 +168,8 @@ class SalesforceConnector(ITargetConnector):
         base = self._base_url()
 
         # 1. Check for an existing ContentDocument by filename to avoid duplicates
-        check_q = f"SELECT ContentDocumentId FROM ContentVersion WHERE Title = '{filename}' LIMIT 1"
+        safe_filename = filename.replace("'", "\\'")
+        check_q = f"SELECT ContentDocumentId FROM ContentVersion WHERE Title = '{safe_filename}' LIMIT 1"
         check_resp = await self._request("GET", f"{base}/query", params={"q": check_q})
         existing = check_resp.json().get("records", [])
         if existing:
