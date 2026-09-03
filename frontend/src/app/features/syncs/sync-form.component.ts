@@ -39,6 +39,7 @@ const CRED_FIELDS: Record<string, CredField[]> = {
     { key: 'external_id_field', label: 'Tracking Field API Name', defaultVal: 'Heretto_UUID__c' },
     { key: 'api_key',           label: 'Heretto Deploy API Key',  inputType: 'password' },
     { key: 'base_url',          label: 'Deploy API Base URL',     hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
+    { key: 'audience',          label: 'Deploy Audience',         hint: 'private or public', defaultVal: 'private' },
   ],
 };
 

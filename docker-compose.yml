@@ -7,9 +7,18 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:////app/data/syndication.db
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
-      - APP_SECRET_KEY=${APP_SECRET_KEY:-}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
+      # Required — see README "Configure environment" for how to generate these
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required — see README}
+      - APP_SECRET_KEY=${APP_SECRET_KEY:?APP_SECRET_KEY is required — see README}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY is required — see README}
+      # Single-org mode: auto-creates one organisation on first startup
+      - SINGLE_ORG_MODE=${SINGLE_ORG_MODE:-true}
+      - SINGLE_ORG_SLUG=${SINGLE_ORG_SLUG:-syndication}
+      # URL where the frontend is served — update for non-localhost deployments
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4200}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:4200}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
+      # Fallback Deploy audience when not set per-credential ("private" or "public")
       - DEPLOY_DEFAULT_AUDIENCE=${DEPLOY_DEFAULT_AUDIENCE:-private}
     volumes:
       - db-data:/app/data

@@ -5,7 +5,7 @@
 # the src/ directory, which resolves correctly when the working directory
 # is set to syndication-service/frontend/ inside the build context.
 
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 # Replicate the sibling-directory layout so relative SCSS imports resolve.
 WORKDIR /build
