@@ -18,7 +18,6 @@ from syndication.connector.noop.connector import NoopConnector
 from syndication.connector.salesforce.connector import SalesforceConnector
 from syndication.source.deploy.adapter import DeployAdapter
 from syndication.source.interface import ISourceAdapter
-from syndication.settings import get_settings
 
 # Register credential types so the hop-core UI/API surfaces them correctly.
 CredentialTypeRegistry.register("deploy", label="Heretto Deploy API")
@@ -62,12 +61,11 @@ def build_adapter(cfg, session_factory) -> ISourceAdapter:
     """
     if cfg.adapter_id == "deploy":
         creds = load_creds(cfg.credential_id, session_factory)
-        settings = get_settings()
         return DeployAdapter(
             org_id=cfg.org_id,
             deployment_id=cfg.deployment_id or "",
             api_key=creds.get("api_key", ""),
-            audience=creds.get("audience", settings.deploy_default_audience),
+            audience=getattr(cfg, "deploy_audience", None),
             base_url=creds.get("base_url") or None,
         )
 

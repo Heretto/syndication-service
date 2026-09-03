@@ -14,11 +14,6 @@ class AppSettings(HopCoreSettings):
     # hop-core makes redis_url required; override to make it optional
     redis_url: str = ""
 
-    # ── Heretto Deploy API ────────────────────────────────────────────────────
-    # Credentials are stored per-sync via hop-core Credential model;
-    # deploy_default_audience is the fallback when no audience is specified.
-    deploy_default_audience: str = "private"
-
     # ── Sync executor ─────────────────────────────────────────────────────────
     sync_max_consecutive_failures: int = 5
     sync_retention_days: int = 90

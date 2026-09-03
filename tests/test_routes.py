@@ -48,6 +48,7 @@ def _make_sync_cfg(**overrides) -> MagicMock:
     cfg.deployment_id = "dep-001"
     cfg.cron_expression = "0 * * * *"
     cfg.publish_mode = "auto"
+    cfg.deploy_audience = None
     cfg.is_active = True
     cfg.high_water_mark = None
     cfg.credential_id = None

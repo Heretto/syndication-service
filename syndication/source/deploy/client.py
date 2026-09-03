@@ -16,7 +16,8 @@ class DeployClient:
         base_url:       ``https://{orgId}.deploy.heretto.com``
         deployment_id:  The deployment identifier.
         api_key:        API key sent in ``X-Deploy-API-Auth``.
-        audience:       Default audience filter (e.g. ``"private"``).
+        audience:       Audience filter appended to the ``changed_content`` query.
+                        ``None`` (default) omits the parameter entirely.
     """
 
     def __init__(
@@ -24,7 +25,7 @@ class DeployClient:
         base_url: str,
         deployment_id: str,
         api_key: str,
-        audience: str = "private",
+        audience: str | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._deployment_id = deployment_id
@@ -56,6 +57,8 @@ class DeployClient:
         params: dict = {}
         if since:
             params["since"] = since
+        if self._audience:
+            params["audience"] = self._audience
         resp = await self._get(self._dep_url("changed_content"), params=params or None)
         return resp.json()
 

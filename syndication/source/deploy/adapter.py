@@ -42,8 +42,9 @@ class DeployAdapter(ISourceAdapter):
         org_id:         Heretto organisation identifier (used in provenance).
         deployment_id:  Deploy API deployment identifier.
         api_key:        API key for ``X-Deploy-API-Auth``.
-        audience:       Which audience to prefer when deduplicating changed_content
-                        results (default ``"private"``).
+        audience:       Audience filter passed to the Deploy API and used when
+                        deduplicating changed_content results.  ``None`` (default)
+                        returns all audiences with no preference.
         base_url:       Override for the Deploy API base URL; defaults to the
                         standard ``https://{org_id}.deploy.heretto.com``.
     """
@@ -55,7 +56,7 @@ class DeployAdapter(ISourceAdapter):
         org_id: str,
         deployment_id: str,
         api_key: str,
-        audience: str = "private",
+        audience: str | None = None,
         base_url: str | None = None,
     ) -> None:
         self._org_id = org_id
@@ -123,9 +124,12 @@ class DeployAdapter(ISourceAdapter):
         # 2. Pick preferred audience row for each uuid
         selected: list[dict] = []
         for rows in by_uuid.values():
-            preferred = next(
-                (r for r in rows if r.get("audience") == self._audience), rows[0]
-            )
+            if self._audience:
+                preferred = next(
+                    (r for r in rows if r.get("audience") == self._audience), rows[0]
+                )
+            else:
+                preferred = rows[0]
             selected.append(preferred)
 
         # 3+4. Separate removed from changed

@@ -39,6 +39,7 @@ class CreateSyncRequest(BaseModel):
     mapping: dict[str, Any] = {}
     credential_id: str | None = None
     publish_mode: str = "auto"
+    deploy_audience: str | None = None
 
 
 class UpdateSyncRequest(BaseModel):
@@ -48,6 +49,7 @@ class UpdateSyncRequest(BaseModel):
     credential_id: str | None = None
     mapping: dict[str, Any] | None = None
     publish_mode: str | None = None
+    deploy_audience: str | None = None
 
 
 class SyncConfigResponse(BaseModel):
@@ -59,6 +61,7 @@ class SyncConfigResponse(BaseModel):
     deployment_id: str | None
     cron_expression: str | None
     publish_mode: str
+    deploy_audience: str | None
     is_active: bool
     high_water_mark: str | None
     credential_id: str | None
@@ -76,6 +79,7 @@ class SyncConfigResponse(BaseModel):
             deployment_id=cfg.deployment_id,
             cron_expression=cfg.cron_expression,
             publish_mode=getattr(cfg, "publish_mode", "auto") or "auto",
+            deploy_audience=getattr(cfg, "deploy_audience", None),
             is_active=cfg.is_active,
             high_water_mark=cfg.high_water_mark,
             credential_id=getattr(cfg, "credential_id", None),
@@ -243,6 +247,7 @@ def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
         mapping=body.mapping,
         credential_id=body.credential_id,
         publish_mode=body.publish_mode,
+        deploy_audience=body.deploy_audience,
     )
     if cfg.cron_expression:
         _scheduler(request).add_schedule(cfg)
@@ -272,6 +277,8 @@ def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context
         updates["cron_expression"] = None
     if "credential_id" in body.model_fields_set and body.credential_id is None:
         updates["credential_id"] = None
+    if "deploy_audience" in body.model_fields_set and body.deploy_audience is None:
+        updates["deploy_audience"] = None
     cfg = _store(request).update_sync(sync_id, **updates)
     # Reschedule whenever cron_expression was included in the request
     if "cron_expression" in body.model_fields_set:

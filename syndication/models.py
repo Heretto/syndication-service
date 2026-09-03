@@ -36,6 +36,7 @@ class SyncConfig(Base):
     credential_id = Column(String(36), nullable=True)
     cron_expression = Column(String(128), nullable=True)  # None = manual-only sync
     publish_mode = Column(String(16), nullable=False, default="auto")  # "auto" | "draft"
+    deploy_audience = Column(String(64), nullable=True)                # e.g. "private" | "public" | None
     mapping_json = Column(Text, nullable=False, default="{}")
     is_active = Column(Boolean, nullable=False, default=True)
     high_water_mark = Column(String(64), nullable=True)  # ISO 8601 cursor

@@ -39,7 +39,6 @@ const CRED_FIELDS: Record<string, CredField[]> = {
     { key: 'external_id_field', label: 'Tracking Field API Name', defaultVal: 'Heretto_UUID__c' },
     { key: 'api_key',           label: 'Heretto Deploy API Key',  inputType: 'password' },
     { key: 'base_url',          label: 'Deploy API Base URL',     hint: 'https://yourorg.deploy.heretto.com (no /v4)' },
-    { key: 'audience',          label: 'Deploy Audience',         hint: 'private or public', defaultVal: 'private' },
   ],
 };
 
@@ -124,6 +123,11 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             <mat-label>Deployment ID</mat-label>
             <input matInput formControlName="deployment_id" placeholder="deployment-uuid">
             <mat-hint>The Deployment ID for the content in Heretto.</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="form-field-full" style="margin-top:12px">
+            <mat-label>Audience</mat-label>
+            <input matInput formControlName="deploy_audience" placeholder="e.g. private or public">
+            <mat-hint>Filter content by audience. Leave blank to return all content.</mat-hint>
           </mat-form-field>
         </section>
 
@@ -534,6 +538,7 @@ export class SyncFormComponent implements OnInit {
     adapter_id:       ['deploy', Validators.required],
     connector_id:     ['salesforce', Validators.required],
     deployment_id:    [''],
+    deploy_audience:  [null as string | null],
     credential_id:    [null as string | null],
     manual_only:      [false],
     cron_expression:  ['0 9 * * *'],
@@ -580,6 +585,7 @@ export class SyncFormComponent implements OnInit {
             adapter_id:      sync.adapter_id,
             connector_id:    sync.connector_id,
             deployment_id:   sync.deployment_id ?? '',
+            deploy_audience: sync.deploy_audience ?? null,
             credential_id:   sync.credential_id ?? null,
             manual_only:     isManualOnly,
             cron_expression: sync.cron_expression ?? '0 9 * * *',
@@ -810,6 +816,7 @@ export class SyncFormComponent implements OnInit {
         name:            raw.name ?? undefined,
         cron_expression: cronExpression,
         deployment_id:   raw.deployment_id || undefined,
+        deploy_audience: raw.deploy_audience || null,
         credential_id:   raw.credential_id ?? null,
         mapping,
         publish_mode:    raw.publish_mode ?? 'auto',
@@ -833,6 +840,7 @@ export class SyncFormComponent implements OnInit {
         mapping,
         credential_id:   raw.credential_id || undefined,
         publish_mode:    raw.publish_mode ?? 'auto',
+        deploy_audience: raw.deploy_audience || null,
       };
       this.syncService.create(input)
         .pipe(takeUntilDestroyed(this.destroyRef))
