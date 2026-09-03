@@ -324,11 +324,13 @@ export class SyncDetailComponent implements OnInit {
     ).subscribe({
       next: runs => {
         this.runs = [...runs];
-        if (!runs.some(r => r.status === 'running')) {
+        // Only watch the most recent run — old stuck runs must not block the spinner
+        const latestIsRunning = runs.length > 0 && runs[0].status === 'running';
+        if (!latestIsRunning) {
           this.runsLoading = false;
           this._pollSub?.unsubscribe();
           this._pollSub = null;
-          // Refresh the sync config so high_water_mark / last synced updates
+          // Refresh sync config so Last Synced / high_water_mark updates
           this.syncService.getById(syncId)
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(sync => { this.sync = sync; });
