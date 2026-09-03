@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE map PUBLIC "-//OASIS//DTD DITA Map//EN" "map.dtd">
+<map>
+  <title>Syndication Service User Guide</title>
+
+  <topicgroup>
+    <topicmeta>
+      <navtitle>Concepts</navtitle>
+    </topicmeta>
+    <topicref href="concepts/c_overview.dita"/>
+    <topicref href="concepts/c_dashboard.dita"/>
+    <topicref href="concepts/c_syncs_list.dita"/>
+    <topicref href="concepts/c_sync_detail.dita"/>
+    <topicref href="concepts/c_run_history.dita"/>
+    <topicref href="concepts/c_administration.dita"/>
+  </topicgroup>
+
+  <topicgroup>
+    <topicmeta>
+      <navtitle>Tasks</navtitle>
+    </topicmeta>
+    <topicref href="tasks/t_create_sync.dita"/>
+    <topicref href="tasks/t_edit_sync.dita"/>
+    <topicref href="tasks/t_trigger_sync.dita"/>
+    <topicref href="tasks/t_force_full_resync.dita"/>
+    <topicref href="tasks/t_delete_sync.dita"/>
+    <topicref href="tasks/t_invite_team_member.dita"/>
+  </topicgroup>
+
+  <topicgroup>
+    <topicmeta>
+      <navtitle>Reference</navtitle>
+    </topicmeta>
+    <topicref href="reference/r_field_mapping.dita"/>
+    <topicref href="reference/r_data_category_mapping.dita"/>
+  </topicgroup>
+
+</map>

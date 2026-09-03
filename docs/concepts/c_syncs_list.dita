@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="c_syncs_list">
+  <title>Syncs List</title>
+  <shortdesc>The Syncs list shows all sync configurations in your organization and provides the
+    starting point for creating, viewing, and managing syncs.</shortdesc>
+  <conbody>
+    <p>Click <uicontrol>Syncs</uicontrol> in the navigation menu to open the Syncs list. Each row
+      in the table represents one sync configuration and displays the following information:</p>
+
+    <dl>
+      <dlentry>
+        <dt>Name</dt>
+        <dd>The descriptive name you assigned to the sync when you created it.</dd>
+      </dlentry>
+      <dlentry>
+        <dt>Adapter</dt>
+        <dd>The source system the sync reads content from. Currently, the only supported adapter
+          is Heretto Deploy.</dd>
+      </dlentry>
+      <dlentry>
+        <dt>Connector</dt>
+        <dd>The target system the sync publishes content to, for example Salesforce Knowledge.</dd>
+      </dlentry>
+      <dlentry>
+        <dt>Schedule</dt>
+        <dd>The human-readable description of when the sync runs automatically, or
+          <userinput>Manual sync only</userinput> if no automatic schedule is configured.</dd>
+      </dlentry>
+      <dlentry>
+        <dt>Status</dt>
+        <dd>Whether the sync is active or inactive.</dd>
+      </dlentry>
+    </dl>
+
+    <p>Click any row to open the Sync Detail page for that sync. Click
+      <uicontrol>New Sync</uicontrol> to create a new sync configuration.</p>
+
+    <note type="tip">If the list is empty, no syncs have been created yet. Click
+      <uicontrol>New Sync</uicontrol> to set one up.</note>
+  </conbody>
+</concept>

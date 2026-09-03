@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
+<task id="t_trigger_sync">
+  <title>Trigger an Incremental Sync Run</title>
+  <shortdesc>Trigger a sync run immediately to publish content that has changed in Heretto
+    Deploy since the last successful run, without waiting for the next scheduled run.</shortdesc>
+  <prolog>
+    <metadata>
+      <audience type="user"/>
+    </metadata>
+  </prolog>
+  <taskbody>
+    <context>
+      <p>An incremental sync run fetches only the content that has changed since the previous
+        successful run, using a high-water-mark cursor. This is the most efficient way to keep
+        your target system up to date and is safe to trigger at any time.</p>
+      <p>If you need to reprocess all content regardless of change date, use
+        <xref href="t_force_full_resync.dita"/> instead.</p>
+    </context>
+
+    <steps>
+      <step>
+        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
+      </step>
+      <step>
+        <cmd>Click the name of the sync you want to run.</cmd>
+        <info>The Sync Detail page opens.</info>
+      </step>
+      <step>
+        <cmd>Click <uicontrol>Sync Changes</uicontrol>.</cmd>
+        <stepresult>A new run is queued. The run history table updates to show the new run with a
+          status of <userinput>Pending</userinput>, which changes to <userinput>Running</userinput>
+          once the run starts. Refresh the page to see the latest status.</stepresult>
+      </step>
+    </steps>
+
+    <result>
+      <p>When the run finishes, its status changes to <userinput>Completed</userinput> and the
+        changed count reflects the number of articles that were created or updated in the target
+        system. If the status is <userinput>Failed</userinput> or <userinput>Error</userinput>,
+        review the error message recorded with the run.</p>
+    </result>
+
+    <note type="important">Do not trigger a new run while a run for the same sync is already
+      in <userinput>Running</userinput> status. Wait for the current run to finish
+      first.</note>
+  </taskbody>
+</task>

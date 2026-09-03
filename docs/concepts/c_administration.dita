@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="c_administration">
+  <title>Administration</title>
+  <shortdesc>The Administration page lets organization administrators manage their organization's
+    name, members, and pending invitations.</shortdesc>
+  <conbody>
+    <p>The <uicontrol>Administration</uicontrol> page is visible only to users with the Admin or
+      System Administrator role. Click <uicontrol>Administration</uicontrol> in the navigation
+      menu to open it.</p>
+
+    <section id="section_org_name">
+      <title>Organization name</title>
+      <p>The organization name is displayed at the top of the page. To change it, edit the name
+        field and save your changes. The name is used for display purposes within the
+        application.</p>
+    </section>
+
+    <section id="section_members">
+      <title>Members</title>
+      <p>The members table lists every user who has accepted an invitation to join your
+        organization. Each row shows the member's email address and their current role. Two roles
+        are available:</p>
+      <dl>
+        <dlentry>
+          <dt>Admin</dt>
+          <dd>Can access the Administration page, manage members and invitations, and perform all
+            standard user actions including creating and running syncs.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Member</dt>
+          <dd>Can create, configure, and run syncs but cannot access the Administration page or
+            manage other users.</dd>
+        </dlentry>
+      </dl>
+      <p>Admins can toggle a member's role between Admin and Member using the role control on
+        each row. Admins can also remove a member from the organization by clicking the remove
+        button on the member's row.</p>
+      <note type="important">Removing a member immediately revokes their access to the
+        Syndication Service. This action cannot be undone; you would need to send a new
+        invitation to restore access.</note>
+    </section>
+
+    <section id="section_invitations">
+      <title>Invitations</title>
+      <p>The invitations table lists pending invitations that have been sent but not yet accepted.
+        Each row shows the invited email address and the date the invitation was sent. From this
+        table you can:</p>
+      <ul>
+        <li>Copy the invitation link to share it directly with the invitee</li>
+        <li>Cancel a pending invitation to prevent it from being accepted</li>
+      </ul>
+      <p>To invite a new member, click <uicontrol>Invite Member</uicontrol>. A dialog opens
+        where you enter the invitee's email address and select their initial role.</p>
+    </section>
+  </conbody>
+</concept>

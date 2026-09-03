@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
+<!--
+  Conref warehouse — not a navigable topic; do not include in the ditamap.
+  Steps in this file are referenced by t_create_sync.dita and t_edit_sync.dita
+  using conref="conref_sync_form.dita#sync-form-steps/<step-id>".
+-->
+<task id="sync-form-steps">
+  <title>Sync Form Shared Steps</title>
+  <taskbody>
+    <steps>
+
+      <step id="step-enter-name">
+        <cmd>In the <uicontrol>Name</uicontrol> field under <uicontrol>Basic
+          Information</uicontrol>, enter a descriptive name for the sync, for example
+          <userinput>Salesforce Knowledge Sync</userinput>.</cmd>
+      </step>
+
+      <step id="step-select-adapter">
+        <cmd>Under <uicontrol>Source &amp; Target</uicontrol>, select an adapter from the
+          <uicontrol>Heretto Deploy Adapter</uicontrol> list.</cmd>
+        <info>The adapter defines the source system the sync reads content from. Heretto Deploy
+          is currently the only supported adapter.</info>
+      </step>
+
+      <step id="step-select-connector">
+        <cmd>Select a connector from the <uicontrol>Target Connector</uicontrol> list.</cmd>
+        <info>The connector defines the target system the sync publishes content to, for example
+          Salesforce Knowledge.</info>
+      </step>
+
+      <step id="step-deployment-id">
+        <cmd>Under <uicontrol>Source — Heretto Deploy</uicontrol>, enter the Deployment ID for
+          the content in Heretto in the <uicontrol>Deployment ID</uicontrol> field.</cmd>
+        <info>The Deployment ID is a UUID that identifies the specific deployment in Heretto
+          Deploy from which content will be read. You can find it in your Heretto Deploy
+          deployment settings.</info>
+      </step>
+
+      <step id="step-select-credential">
+        <cmd>Under <uicontrol>Target Connection</uicontrol>, select a saved credential from
+          the credential list.</cmd>
+        <info>
+          <p>If no credential exists yet, click <uicontrol>New credential</uicontrol> to expand
+            the inline credential form. Enter the required values for your target connector and
+            click <uicontrol>Save Credential</uicontrol>. The new credential will be selected
+            automatically.</p>
+        </info>
+      </step>
+
+      <step id="step-configure-schedule">
+        <cmd>Under <uicontrol>Schedule</uicontrol>, configure how often the sync runs
+          automatically.</cmd>
+        <choicetable>
+          <chhead>
+            <choptionhd>Option</choptionhd>
+            <chdeschd>Description</chdeschd>
+          </chhead>
+          <chrow>
+            <choption>Automatic schedule</choption>
+            <chdesc>Leave the <uicontrol>Manual sync only — no automatic schedule</uicontrol>
+              checkbox unchecked and use the schedule builder to set a recurring schedule,
+              such as daily at 9 AM.</chdesc>
+          </chrow>
+          <chrow>
+            <choption>Manual sync only</choption>
+            <chdesc>Select <uicontrol>Manual sync only — no automatic schedule</uicontrol> to
+              disable automatic runs. The sync will run only when you trigger it manually from
+              the Sync Detail page.</chdesc>
+          </chrow>
+        </choicetable>
+      </step>
+
+      <step id="step-field-mapping">
+        <cmd>Under <uicontrol>Field Mapping</uicontrol>, map each Heretto source field you want
+          to publish to its corresponding field API name in the target system.</cmd>
+        <substeps>
+          <substep>
+            <cmd>Click <uicontrol>Add Field</uicontrol> to add a mapping row.</cmd>
+          </substep>
+          <substep>
+            <cmd>In the left dropdown, select a source field from Heretto Deploy.</cmd>
+          </substep>
+          <substep>
+            <cmd>In the right input, enter the API name of the target field in your connector,
+              for example <userinput>Answer__c</userinput>.</cmd>
+          </substep>
+          <substep>
+            <cmd>Repeat for each field you want to map.</cmd>
+          </substep>
+        </substeps>
+        <info>See <xref href="../reference/r_field_mapping.dita"/> for the list of available
+          source fields and format details.</info>
+      </step>
+
+      <step id="step-category-mapping">
+        <cmd>Optional: Under <uicontrol>Data Category Mapping</uicontrol>, map Heretto taxonomy
+          group names to Salesforce data category group API names.</cmd>
+        <substeps>
+          <substep>
+            <cmd>Click <uicontrol>Add Category</uicontrol> to add a mapping row.</cmd>
+          </substep>
+          <substep>
+            <cmd>In the left field, enter the name of the Heretto taxonomy group, for example
+              <userinput>Audiences</userinput>.</cmd>
+          </substep>
+          <substep>
+            <cmd>In the right dropdown, select the corresponding Salesforce data category group.
+              The list is populated from your Salesforce organization.</cmd>
+          </substep>
+          <substep>
+            <cmd>Repeat for each taxonomy group you want to map.</cmd>
+          </substep>
+        </substeps>
+        <info>This section appears only when the target connector is Salesforce. Data category
+          groups must exist in Salesforce Setup before they appear in the dropdown. See
+          <xref href="../reference/r_data_category_mapping.dita"/> for format details.</info>
+      </step>
+
+    </steps>
+  </taskbody>
+</task>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
+<task id="t_edit_sync">
+  <title>Edit a Sync</title>
+  <shortdesc>Update the configuration of an existing sync, for example to change its name,
+    schedule, field mapping, or credentials.</shortdesc>
+  <prolog>
+    <metadata>
+      <audience type="user"/>
+    </metadata>
+  </prolog>
+  <taskbody>
+    <steps>
+      <step>
+        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
+      </step>
+      <step>
+        <cmd>Click the name of the sync you want to edit.</cmd>
+        <info>The Sync Detail page opens.</info>
+      </step>
+      <step>
+        <cmd>Click <uicontrol>Edit</uicontrol>.</cmd>
+        <info>The Edit Sync form opens with the current values pre-filled.</info>
+      </step>
+
+      <step conref="conref_sync_form.dita#sync-form-steps/step-enter-name">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-select-adapter">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-select-connector">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-deployment-id">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-select-credential">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-configure-schedule">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-field-mapping">
+        <cmd/>
+      </step>
+      <step conref="conref_sync_form.dita#sync-form-steps/step-category-mapping">
+        <cmd/>
+      </step>
+
+      <step>
+        <cmd>Click <uicontrol>Save Changes</uicontrol>.</cmd>
+        <stepresult>The updated configuration is saved and you are returned to the Sync Detail
+          page. If you changed the schedule, the new schedule takes effect immediately.</stepresult>
+      </step>
+    </steps>
+  </taskbody>
+</task>

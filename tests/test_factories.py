@@ -14,7 +14,6 @@ import pytest
 from syndication.factory import build_adapter, build_connector
 from syndication.connector.noop.connector import NoopConnector
 from syndication.connector.salesforce.connector import SalesforceConnector
-from syndication.connector.zendesk.connector import ZendeskConnector
 from syndication.source.deploy.adapter import DeployAdapter
 
 
@@ -186,59 +185,8 @@ class TestBuildConnector:
         with pytest.raises(ValueError, match="credential_id"):
             build_connector(cfg, sf)
 
-    def test_zendesk_returns_zendesk_connector(self):
-        cfg = _make_cfg(connector_id="zendesk")
-        zd_creds = {
-            "subdomain": "mycompany",
-            "access_token": "zd-token",
-            "section_id": "12345",
-            "locale": "en-us",
-        }
-        result = self._call(cfg, creds=zd_creds)
-        assert isinstance(result, ZendeskConnector)
-
-    def test_zendesk_uses_subdomain_from_creds(self):
-        cfg = _make_cfg(connector_id="zendesk")
-        zd_creds = {
-            "subdomain": "acme",
-            "access_token": "tok",
-            "section_id": "1",
-            "locale": "en-us",
-        }
-        conn = self._call(cfg, creds=zd_creds)
-        assert conn._subdomain == "acme"
-
-    def test_zendesk_uses_access_token_from_creds(self):
-        cfg = _make_cfg(connector_id="zendesk")
-        zd_creds = {
-            "subdomain": "x",
-            "access_token": "my-zd-token",
-            "section_id": "1",
-            "locale": "en-us",
-        }
-        conn = self._call(cfg, creds=zd_creds)
-        assert conn._access_token == "my-zd-token"
-
-    def test_zendesk_uses_section_id_from_creds(self):
-        cfg = _make_cfg(connector_id="zendesk")
-        zd_creds = {
-            "subdomain": "x",
-            "access_token": "tok",
-            "section_id": "99887",
-            "locale": "en-us",
-        }
-        conn = self._call(cfg, creds=zd_creds)
-        assert conn._section_id == "99887"
-
-    def test_zendesk_defaults_locale_to_en_us(self):
-        cfg = _make_cfg(connector_id="zendesk")
-        zd_creds = {"subdomain": "x", "access_token": "tok", "section_id": "1"}
-        conn = self._call(cfg, creds=zd_creds)
-        assert conn._locale == "en-us"
-
-    def test_zendesk_missing_credential_id_raises_value_error(self):
-        cfg = _make_cfg(connector_id="zendesk", credential_id=None)
-        session = MagicMock()
-        sf = MagicMock(return_value=session)
-        with pytest.raises(ValueError, match="credential_id"):
-            build_connector(cfg, sf)
+    def test_unsupported_connector_raises_value_error(self):
+        for connector_id in ("zendesk", "servicenow"):
+            cfg = _make_cfg(connector_id=connector_id)
+            with pytest.raises(ValueError, match="Unknown connector_id"):
+                self._call(cfg)

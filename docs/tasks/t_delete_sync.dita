@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
+<task id="t_delete_sync">
+  <title>Delete a Sync</title>
+  <shortdesc>Permanently remove a sync configuration and its automatic schedule from the
+    Syndication Service.</shortdesc>
+  <prolog>
+    <metadata>
+      <audience type="user"/>
+    </metadata>
+  </prolog>
+  <taskbody>
+    <context>
+      <p>Deleting a sync removes its configuration and cancels any automatic schedule. Content
+        that has already been published to the target system is not affected. This action cannot
+        be undone.</p>
+    </context>
+
+    <steps>
+      <step>
+        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
+      </step>
+      <step>
+        <cmd>Click the name of the sync you want to delete.</cmd>
+        <info>The Sync Detail page opens.</info>
+      </step>
+      <step>
+        <cmd>Click <uicontrol>Delete</uicontrol>.</cmd>
+      </step>
+      <step>
+        <cmd>In the confirmation dialog, confirm that you want to permanently delete the
+          sync.</cmd>
+        <stepresult>The sync configuration and its schedule are permanently removed. You are
+          redirected to the Syncs list.</stepresult>
+      </step>
+    </steps>
+
+    <note type="important">Deleting a sync does not remove content that was previously published
+      to the target system. To remove published articles, you must do so directly in the target
+      system.</note>
+  </taskbody>
+</task>

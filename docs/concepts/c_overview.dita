@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="c_overview">
+  <title>Syndication Service Overview</title>
+  <shortdesc>The Syndication Service is a publishing pipeline that moves structured content from
+    Heretto to external knowledge platforms automatically, on a schedule, or on
+    demand.</shortdesc>
+  <conbody>
+    <p>Organizations that maintain content in Heretto and publish support documentation in
+      Salesforce Knowledge face a recurring challenge: keeping both systems in sync without manual
+      export and import steps. The Syndication Service solves this by acting as a continuous bridge
+      between the two platforms.</p>
+
+    <section>
+      <title>How it works</title>
+      <p>The service connects three layers:</p>
+      <dl>
+        <dlentry>
+          <dt>Source — Heretto Deploy API</dt>
+          <dd>The service reads content from your Heretto deployment using the Deploy API. It
+            tracks which topics have changed since the last successful run, so only new or updated
+            content is transferred during incremental syncs. A full resync option is also available
+            when you need to push all content regardless of change history.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Pipeline</dt>
+          <dd>Each topic is converted into a neutral intermediate format before it reaches the
+            target. This step handles HTML sanitization, binary asset transfer, taxonomy extraction,
+            and cross-article link resolution. The pipeline is target-agnostic, so the same source
+            content can be routed to different platforms without modification.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Target — Salesforce Knowledge</dt>
+          <dd>Processed topics are created or updated as Salesforce Knowledge articles using the
+            Salesforce REST API. The service handles the full article lifecycle: draft creation,
+            image upload, data category assignment, publishing, and archiving of articles that are
+            removed from Heretto.</dd>
+        </dlentry>
+      </dl>
+    </section>
+
+    <section>
+      <title>The Syndication Service application</title>
+      <p>The web application provides a self-service interface for configuring and monitoring
+        content syncs. From the application you can:</p>
+      <ul>
+        <li>Create and manage sync configurations that pair a Heretto deployment with a Salesforce
+          org</li>
+        <li>Map Heretto content fields to Salesforce Knowledge article fields</li>
+        <li>Map Heretto taxonomy groups to Salesforce data category groups</li>
+        <li>Set a cron-based automatic schedule, or configure a sync to run on manual trigger
+          only</li>
+        <li>Trigger incremental or full resyncs on demand</li>
+        <li>Monitor run history, article counts, and error messages</li>
+        <li>Manage organization members and credentials</li>
+      </ul>
+      <p>Each sync configuration stores its own credentials and field mappings, so multiple
+        Heretto deployments or multiple Salesforce orgs can be managed independently within the
+        same application.</p>
+    </section>
+
+    <section>
+      <title>Salesforce Knowledge integration</title>
+      <p>The service publishes content to Salesforce Knowledge using the Salesforce REST API with
+        an OAuth 2.0 client credentials flow. Articles are created or updated idempotently using a
+        custom external ID field that maps to the Heretto topic UUID, so re-running a sync never
+        creates duplicate articles.</p>
+      <p>The following Salesforce Knowledge behaviors are supported:</p>
+      <ul>
+        <li><b>Article upsert</b> — creates a new draft article or updates an existing one based
+          on the external ID</li>
+        <li><b>Image upload</b> — binary assets are downloaded from Heretto and uploaded as
+          Salesforce Content Versions, then rewritten inline in the article HTML</li>
+        <li><b>Data category assignment</b> — Heretto taxonomy values are mapped to Salesforce
+          data category selections on the article record</li>
+        <li><b>Publish</b> — articles are published and made visible to end users after all
+          content is loaded</li>
+        <li><b>Archive</b> — articles removed from Heretto are unpublished in Salesforce
+          Knowledge on the next sync</li>
+      </ul>
+      <note type="important">Salesforce data category groups must be configured in Salesforce
+        Setup before data category mappings take effect. The Syndication Service reads the
+        available groups from your Salesforce org dynamically when you configure a
+        sync.</note>
+    </section>
+  </conbody>
+</concept>

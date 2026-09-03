@@ -75,7 +75,8 @@ export const routes: Routes = [
       {
         path: 'superadmin',
         canActivate: [adminGuard],
-        loadComponent: () => import('@heretto/hop-ui').then(m => m.HopAdminComponent),
+        loadComponent: () =>
+          import('./features/admin/superadmin.component').then(m => m.SuperadminComponent),
       },
       { path: '**', redirectTo: 'dashboard' },
     ],

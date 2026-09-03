@@ -16,8 +16,6 @@ from hop_core.models.enums import CredentialTypeRegistry
 from syndication.connector.interface import ITargetConnector
 from syndication.connector.noop.connector import NoopConnector
 from syndication.connector.salesforce.connector import SalesforceConnector
-from syndication.connector.servicenow.connector import ServiceNowConnector
-from syndication.connector.zendesk.connector import ZendeskConnector
 from syndication.source.deploy.adapter import DeployAdapter
 from syndication.source.interface import ISourceAdapter
 from syndication.settings import get_settings
@@ -25,8 +23,6 @@ from syndication.settings import get_settings
 # Register credential types so the hop-core UI/API surfaces them correctly.
 CredentialTypeRegistry.register("deploy", label="Heretto Deploy API")
 CredentialTypeRegistry.register("salesforce", label="Salesforce Knowledge")
-CredentialTypeRegistry.register("servicenow", label="ServiceNow Knowledge")
-CredentialTypeRegistry.register("zendesk", label="Zendesk Guide")
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -111,26 +107,7 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
             external_id_field=creds.get("external_id_field", "Heretto_UUID__c"),
         )
 
-    if cfg.connector_id == "servicenow":
-        creds = _load_creds(cfg.credential_id, session_factory)
-        return ServiceNowConnector(
-            instance_url=creds.get("instance_url", ""),
-            access_token=creds.get("access_token", ""),
-            knowledge_base_sys_id=creds.get("knowledge_base_sys_id", ""),
-            kb_category_sys_id=creds.get("kb_category_sys_id", ""),
-            external_id_field=creds.get("external_id_field", "u_external_id"),
-        )
-
-    if cfg.connector_id == "zendesk":
-        creds = _load_creds(cfg.credential_id, session_factory)
-        return ZendeskConnector(
-            subdomain=creds.get("subdomain", ""),
-            access_token=creds.get("access_token", ""),
-            section_id=creds.get("section_id", ""),
-            locale=creds.get("locale", "en-us"),
-        )
-
     raise ValueError(
         f"Unknown connector_id: {cfg.connector_id!r}. "
-        f"Supported values: 'noop', 'salesforce', 'servicenow', 'zendesk'."
+        f"Supported values: 'noop', 'salesforce'."
     )

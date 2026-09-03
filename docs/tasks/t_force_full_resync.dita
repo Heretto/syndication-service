@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
+<task id="t_force_full_resync">
+  <title>Force a Full Resync</title>
+  <shortdesc>Trigger a full resync to reprocess all content in the Heretto Deploy deployment,
+    regardless of when each article was last modified.</shortdesc>
+  <prolog>
+    <metadata>
+      <audience type="user"/>
+    </metadata>
+  </prolog>
+  <taskbody>
+    <context>
+      <p>A full resync walks the complete structure of your Heretto Deploy deployment and
+        processes every article it finds. Unlike an incremental sync, a full resync does not use
+        the high-water-mark cursor, so it does not advance the change cursor when it completes.
+        The next scheduled or manual incremental sync will continue from the same cursor
+        position as before the full resync.</p>
+      <p>Use a full resync when:</p>
+      <ul>
+        <li>Articles exist in Heretto Deploy that were never captured by the change cursor, for
+          example content published before sync tracking began.</li>
+        <li>You suspect the target system is missing articles or has content that is out of
+          date.</li>
+        <li>You have made changes to the field mapping or data category mapping and want those
+          changes applied to all articles, not just newly changed ones.</li>
+      </ul>
+      <note type="important">A full resync processes every article in your deployment and may
+        take significantly longer than an incremental sync run, depending on the size of your
+        content library.</note>
+    </context>
+
+    <steps>
+      <step>
+        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
+      </step>
+      <step>
+        <cmd>Click the name of the sync you want to resync.</cmd>
+        <info>The Sync Detail page opens.</info>
+      </step>
+      <step>
+        <cmd>Click <uicontrol>Full Resync</uicontrol>.</cmd>
+        <info>A confirmation prompt may appear. Confirm that you want to proceed.</info>
+        <stepresult>A full resync run is queued. The run history table updates to show the new
+          run with a status of <userinput>Pending</userinput>. Refresh the page to see the latest
+          status as the run progresses.</stepresult>
+      </step>
+    </steps>
+
+    <result>
+      <p>When the run finishes, its status changes to <userinput>Completed</userinput> and the
+        changed count reflects the total number of articles processed. The high-water-mark cursor
+        is not updated; subsequent incremental runs will pick up changes from the same point as
+        before the resync.</p>
+    </result>
+  </taskbody>
+</task>

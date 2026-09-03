@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE reference PUBLIC "-//OASIS//DTD DITA Reference//EN" "reference.dtd">
+<reference id="r_data_category_mapping">
+  <title>Data Category Mapping Format</title>
+  <shortdesc>The data category mapping connects Heretto taxonomy groups to Salesforce data
+    category groups, allowing taxonomy values from Heretto Deploy to be applied as Salesforce
+    Knowledge data categories during publishing.</shortdesc>
+  <refbody>
+
+    <section id="section_overview">
+      <title>Overview</title>
+      <p>Salesforce Knowledge uses data categories to classify articles for visibility and
+        filtering. The Syndication Service can automatically apply data category selections to
+        each article it publishes, based on the taxonomy values assigned to that article in
+        Heretto Deploy.</p>
+      <p>The data category mapping tells the service which Heretto taxonomy group corresponds to
+        which Salesforce data category group. When a sync run processes an article, it reads the
+        article's taxonomy values for the mapped groups and creates the corresponding
+        <codeph>Knowledge__DataCategorySelection</codeph> records in Salesforce.</p>
+      <note type="important">Data category groups and their values must be created in Salesforce
+        Setup before they can be used in a mapping. If a category group referenced in the mapping
+        does not exist in Salesforce, category assignment for that group will be skipped for the
+        affected articles.</note>
+    </section>
+
+    <section id="section_format">
+      <title>Format</title>
+      <p>The data category mapping is configured in the sync form as rows pairing a Heretto
+        taxonomy group name with a Salesforce data category group. Internally it is stored under
+        the <codeph>category_map</codeph> key in the sync mapping JSON. Keys are Heretto taxonomy
+        group names; values are the API names of the corresponding Salesforce data category
+        groups.</p>
+      <p>Example:</p>
+      <codeblock>{
+  "category_map": {
+    "Audiences": "Audiences",
+    "Topics":    "Topics__c"
+  }
+}</codeblock>
+      <p>In this example, articles tagged with values in the Heretto taxonomy group named
+        <userinput>Audiences</userinput> will have those values applied to the Salesforce data
+        category group with API name <userinput>Audiences</userinput>. Articles tagged with
+        values in the Heretto group <userinput>Topics</userinput> will have those values applied
+        to the Salesforce group <userinput>Topics__c</userinput>.</p>
+    </section>
+
+    <section id="section_finding_api_names">
+      <title>Finding Salesforce data category group API names</title>
+      <p>The Salesforce data category group API name is not always the same as the group's
+        display label. To find the correct API name:</p>
+      <ol>
+        <li>In Salesforce, go to
+          <menucascade>
+            <uicontrol>Setup</uicontrol>
+            <uicontrol>Data Category Setup</uicontrol>
+          </menucascade>.</li>
+        <li>Click the name of the data category group.</li>
+        <li>The API name is shown in the group's detail view. Custom groups typically end in
+          <codeph>__c</codeph>.</li>
+      </ol>
+      <p>In the Syndication Service sync form, the Salesforce data category group dropdown is
+        populated dynamically from your connected Salesforce organization, so you can select the
+        group by label without needing to look up the API name manually.</p>
+    </section>
+
+  </refbody>
+</reference>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="c_run_history">
+  <title>Run History</title>
+  <shortdesc>The Run History page shows the results of all sync runs across every sync in your
+    organization, allowing you to monitor publishing activity and investigate errors.</shortdesc>
+  <conbody>
+    <p>Click <uicontrol>Run History</uicontrol> in the navigation menu to open the Run History
+      page. Each row in the table represents one sync run and shows:</p>
+    <ul>
+      <li>A status badge indicating the outcome of the run</li>
+      <li>The name of the sync that produced the run</li>
+      <li>The date and time the run started, displayed in your local timezone</li>
+      <li>The number of articles changed during the run, when available</li>
+    </ul>
+
+    <section id="section_run_statuses">
+      <title>Run statuses</title>
+      <p>Each run is assigned one of the following statuses:</p>
+      <dl>
+        <dlentry>
+          <dt>Pending</dt>
+          <dd>The run has been queued and is waiting to start.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Running</dt>
+          <dd>The run is actively processing content. Do not trigger another run for the same
+            sync while a run is in this state.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Completed</dt>
+          <dd>The run finished successfully. All changed content was processed and published to
+            the target system.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Failed</dt>
+          <dd>The run encountered a problem that prevented it from completing. An error message
+            is recorded with the run. Check your sync configuration and credentials, then
+            trigger the run again.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Error</dt>
+          <dd>An unexpected error occurred during the run. An error message is recorded with the
+            run. If the problem persists after retrying, contact your system administrator.</dd>
+        </dlentry>
+      </dl>
+    </section>
+
+    <section id="section_changed_count">
+      <title>Changed count</title>
+      <p>The changed count reflects the number of articles that were created or updated in the
+        target system during the run. A count of zero on a completed run is normal when no
+        content has changed in Heretto Deploy since the previous run.</p>
+      <note type="tip">A full resync does not advance the change cursor, so the changed count
+        during a full resync reflects the total number of articles processed, not the number of
+        newly changed articles.</note>
+    </section>
+  </conbody>
+</concept>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="c_dashboard">
+  <title>Dashboard</title>
+  <shortdesc>The Dashboard is the home page of the Syndication Service. It gives you an at-a-glance
+    overview of your syncs and recent activity so you can quickly assess the health of your
+    content publishing pipeline.</shortdesc>
+  <conbody>
+    <p>When you log in to the Syndication Service, the Dashboard is the first page you see. It is
+      organized into two areas: a row of summary tiles at the top and two detail panels
+      below.</p>
+
+    <section id="section_kpi_tiles">
+      <title>Summary tiles</title>
+      <p>The four tiles across the top of the Dashboard give you an immediate count of key
+        metrics:</p>
+      <dl>
+        <dlentry>
+          <dt>Total Syncs</dt>
+          <dd>The total number of sync configurations in your organization.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Active</dt>
+          <dd>The number of syncs that are currently enabled and will run on their configured
+            schedule.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Recent Runs</dt>
+          <dd>The number of sync runs surfaced in the Recent Runs panel.</dd>
+        </dlentry>
+        <dlentry>
+          <dt>Errors</dt>
+          <dd>The number of recent runs that ended in a <userinput>failed</userinput> or
+            <userinput>error</userinput> status. The tile is highlighted when errors are
+            present.</dd>
+        </dlentry>
+      </dl>
+    </section>
+
+    <section id="section_syncs_panel">
+      <title>Syncs panel</title>
+      <p>The <uicontrol>Syncs</uicontrol> panel lists your sync configurations. Each row shows a
+        colored status dot, the sync name, the source and target systems, and the configured
+        schedule. A green dot indicates the sync is active; a grey dot indicates it is
+        inactive.</p>
+      <p>Click any sync row to open its detail page. Click <uicontrol>View all</uicontrol> to
+        open the full Syncs list.</p>
+      <note type="tip">If no syncs have been created yet, the panel shows a prompt with a link
+        to create your first sync.</note>
+    </section>
+
+    <section id="section_recent_runs_panel">
+      <title>Recent Runs panel</title>
+      <p>The <uicontrol>Recent Runs</uicontrol> panel shows the most recent run results across
+        your syncs. Each row displays the run status, the name of the sync that produced it,
+        and the time the run started. When available, it also shows the number of articles
+        changed during that run.</p>
+      <p>Click <uicontrol>View all</uicontrol> to open the full Run History page.</p>
+    </section>
+
+    <section id="section_new_sync">
+      <title>Creating a sync from the Dashboard</title>
+      <p>Click <uicontrol>New Sync</uicontrol> in the upper-right corner of the Dashboard to
+        open the sync creation form.</p>
+    </section>
+  </conbody>
+</concept>
