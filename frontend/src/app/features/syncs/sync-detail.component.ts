@@ -95,10 +95,6 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
               <dt>Publish Mode</dt>
               <dd>{{ sync.publish_mode === 'draft' ? 'Save as draft' : 'Auto-publish' }}</dd>
             </div>
-            <div class="dl-row" *ngIf="sync.deploy_audience">
-              <dt>Audience</dt>
-              <dd>{{ sync.deploy_audience }}</dd>
-            </div>
             <div class="dl-row" *ngIf="sync.high_water_mark">
               <dt>Last Synced</dt>
               <dd>{{ sync.high_water_mark | localDate:'MMM d, yyyy h:mm a' }}</dd>

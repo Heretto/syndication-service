@@ -44,6 +44,40 @@
         to the Salesforce group <userinput>Topics__c</userinput>.</p>
     </section>
 
+    <section id="section_audience_filtering">
+      <title>Audience-specific content and Salesforce filtering</title>
+      <p>If your Heretto content is tagged with audience values (for example,
+        <userinput>private</userinput> and <userinput>public</userinput>), use data category
+        mapping to control article visibility in Salesforce — do not attempt to filter content at
+        the Deploy API level.</p>
+      <p>The reason is that Heretto Deploy assigns each topic a single UUID regardless of which
+        audience sees it. If you were to run separate syncs filtered to different audiences, both
+        syncs would upsert to the same Salesforce Knowledge article (because the external ID field
+        is the UUID), and the most recently synced version would overwrite the previous one. You
+        would not get separate articles per audience.</p>
+      <p>The correct approach is:</p>
+      <ol>
+        <li>Configure the sync with no audience filter so all content is returned from
+          Deploy.</li>
+        <li>In Heretto, assign audience taxonomy values to each topic that needs them (for
+          example, a taxonomy group named <userinput>Audience</userinput> with values such as
+          <userinput>Internal</userinput> and <userinput>External</userinput>).</li>
+        <li>In Salesforce Setup, create a matching data category group and categories (for
+          example, a group named <userinput>Audience</userinput> with categories
+          <userinput>Internal</userinput> and <userinput>External</userinput>).</li>
+        <li>In the sync form, add a Data Category Mapping row that maps the Heretto taxonomy
+          group <userinput>Audience</userinput> to the Salesforce category group
+          <userinput>Audience</userinput>.</li>
+      </ol>
+      <p>During each sync run, the service reads the audience taxonomy values from each topic and
+        creates the corresponding <codeph>Knowledge__DataCategorySelection</codeph> records in
+        Salesforce. Salesforce then handles article visibility and filtering based on those
+        categories at query time.</p>
+      <note type="important">Taxonomy values are passed through to Salesforce unchanged. The
+        value in your Heretto taxonomy must match the Salesforce data category API name
+        exactly.</note>
+    </section>
+
     <section id="section_finding_api_names">
       <title>Finding Salesforce data category group API names</title>
       <p>The Salesforce data category group API name is not always the same as the group's

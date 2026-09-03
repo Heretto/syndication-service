@@ -112,9 +112,18 @@
             <cmd>Repeat for each taxonomy group you want to map.</cmd>
           </substep>
         </substeps>
-        <info>This section appears only when the target connector is Salesforce. Data category
-          groups must exist in Salesforce Setup before they appear in the dropdown. See
-          <xref href="../reference/r_data_category_mapping.dita"/> for format details.</info>
+        <info>
+          <p>This section appears only when the target connector is Salesforce. Data category
+            groups must exist in Salesforce Setup before they appear in the dropdown.</p>
+          <p>If your Heretto content uses audience taxonomy values (for example,
+            <userinput>Internal</userinput> and <userinput>External</userinput>), map that
+            taxonomy group here to control article visibility in Salesforce. This is the
+            supported way to implement audience-specific content filtering — Salesforce applies
+            category-based visibility at query time rather than requiring separate sync
+            configurations per audience.</p>
+          <p>See <xref href="../reference/r_data_category_mapping.dita"/> for format details
+            and a full explanation of the audience filtering approach.</p>
+        </info>
       </step>
 
     </steps>
