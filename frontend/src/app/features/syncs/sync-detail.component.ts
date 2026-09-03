@@ -8,6 +8,8 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { HopConfirmDialogComponent } from '@heretto/hop-ui';
+import { interval, Subscription } from 'rxjs';
+import { switchMap, takeWhile } from 'rxjs/operators';
 import { SyncService, SyncConfig, SyncRun } from '../../core/services/sync.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
@@ -233,7 +235,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 export class SyncDetailComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
-  private _pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private _pollSub: Subscription | null = null;
 
   sync: SyncConfig | null = null;
   runs: SyncRun[] = [];
@@ -247,7 +249,7 @@ export class SyncDetailComponent implements OnInit {
     private router: Router,
   ) {
     this.destroyRef.onDestroy(() => {
-      if (this._pollTimer !== null) clearTimeout(this._pollTimer);
+      this._pollSub?.unsubscribe();
     });
   }
 
@@ -313,24 +315,27 @@ export class SyncDetailComponent implements OnInit {
     });
   }
 
-  private _startRunPolling(syncId: string, deadline = Date.now() + 10 * 60 * 1000): void {
+  private _startRunPolling(syncId: string): void {
+    this._pollSub?.unsubscribe();
     this.runsLoading = true;
-    this._pollTimer = setTimeout(() => {
-      this.syncService.getRuns(syncId)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: runs => {
-            this.runs = runs;
-            const hasRunning = runs.some(r => r.status === 'running');
-            if (hasRunning && Date.now() < deadline) {
-              this._startRunPolling(syncId, deadline);
-            } else {
-              this.runsLoading = false;
-            }
-          },
-          error: () => { this.runsLoading = false; },
-        });
-    }, 3000);
+
+    this._pollSub = interval(3000).pipe(
+      switchMap(() => this.syncService.getRuns(syncId)),
+      takeWhile(runs => runs.some(r => r.status === 'running'), true),
+    ).subscribe({
+      next: runs => {
+        this.runs = [...runs];
+        if (!runs.some(r => r.status === 'running')) {
+          this.runsLoading = false;
+          // Refresh the sync config so high_water_mark / last synced updates
+          this.syncService.getById(syncId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(sync => { this.sync = sync; });
+        }
+      },
+      error: () => { this.runsLoading = false; },
+      complete: () => { this.runsLoading = false; },
+    });
   }
 
   deactivate() {
