@@ -220,6 +220,16 @@ class TestCreateSync:
         resp = client.post("/syncs", json=payload)
         assert resp.status_code == 422
 
+    def test_invalid_cron_returns_422(self, client):
+        resp = client.post("/syncs", json=self._payload(cron_expression="not-a-cron"))
+        assert resp.status_code == 422
+        assert "cron" in resp.json()["detail"].lower()
+
+    def test_null_cron_creates_without_schedule(self, client, mock_store, mock_scheduler):
+        mock_store.create_sync.return_value = _make_sync_cfg(cron_expression=None)
+        client.post("/syncs", json=self._payload(cron_expression=None))
+        mock_scheduler.add_schedule.assert_not_called()
+
 
 # ── GET /syncs/{sync_id} ──────────────────────────────────────────────────────
 
@@ -283,6 +293,23 @@ class TestUpdateSync:
     def test_response_includes_mapping(self, client):
         resp = client.put("/syncs/sync-001", json=self._payload())
         assert "mapping" in resp.json()
+
+    def test_invalid_cron_returns_422(self, client):
+        resp = client.put("/syncs/sync-001", json={"cron_expression": "not-a-cron"})
+        assert resp.status_code == 422
+        assert "cron" in resp.json()["detail"].lower()
+
+    def test_null_cron_removes_schedule_and_does_not_readd(self, client, mock_store, mock_scheduler):
+        mock_store.update_sync.return_value = _make_sync_cfg(cron_expression=None)
+        client.put("/syncs/sync-001", json={"cron_expression": None})
+        mock_scheduler.remove_schedule.assert_called_once_with("sync-001")
+        mock_scheduler.add_schedule.assert_not_called()
+
+    def test_null_cron_passed_to_store(self, client, mock_store):
+        client.put("/syncs/sync-001", json={"cron_expression": None})
+        call_kwargs = mock_store.update_sync.call_args.kwargs
+        assert "cron_expression" in call_kwargs
+        assert call_kwargs["cron_expression"] is None
 
 
 # ── DELETE /syncs/{sync_id} ───────────────────────────────────────────────────

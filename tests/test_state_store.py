@@ -74,6 +74,20 @@ class TestSyncConfig:
     def test_delete_sync_is_idempotent(self, store: SyncStateStore):
         store.delete_sync("nonexistent-id")  # must not raise
 
+    def test_update_sync_clears_cron_expression_to_none(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "0 9 * * *")
+        updated = store.update_sync(cfg.id, cron_expression=None)
+        assert updated.cron_expression is None
+        # Verify the cleared value was persisted
+        fetched = store.get_sync(cfg.id)
+        assert fetched.cron_expression is None
+
+    def test_update_sync_preserves_cron_when_not_provided(self, store: SyncStateStore):
+        cfg = store.create_sync("S", "deploy", "noop", "org", "dep", "0 9 * * *")
+        store.update_sync(cfg.id, name="New Name")
+        fetched = store.get_sync(cfg.id)
+        assert fetched.cron_expression == "0 9 * * *"
+
 
 # ── High-water mark ───────────────────────────────────────────────────────────
 

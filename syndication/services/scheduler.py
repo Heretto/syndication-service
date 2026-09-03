@@ -97,7 +97,10 @@ class SyncSchedulerService:
         """
         syncs = self._store.list_active_syncs()
         for sync in syncs:
-            self.add_schedule(sync)
+            try:
+                self.add_schedule(sync)
+            except Exception as exc:
+                log.error("Failed to schedule sync %s (%r): %s", sync.id, sync.cron_expression, exc)
         log.info("Loaded %d active sync schedule(s).", len(syncs))
 
     # ── Inspection ────────────────────────────────────────────────────────────

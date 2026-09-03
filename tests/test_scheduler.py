@@ -163,3 +163,17 @@ class TestLoadAll:
         mock_state_store.list_active_syncs.return_value = []
         scheduler.load_all()
         mock_apscheduler.add_job.assert_not_called()
+
+    def test_load_all_skips_invalid_cron_and_schedules_valid(
+        self, scheduler, mock_state_store, mock_apscheduler
+    ):
+        bad = _make_sync(id="s-bad", cron_expression="not-a-cron")
+        good = _make_sync(id="s-good", cron_expression="0 9 * * *")
+        mock_state_store.list_active_syncs.return_value = [bad, good]
+
+        scheduler.load_all()  # must not raise
+
+        # Only the valid sync gets scheduled
+        assert mock_apscheduler.add_job.call_count == 1
+        scheduled_id = mock_apscheduler.add_job.call_args.kwargs.get("id")
+        assert scheduled_id == "sync:s-good"

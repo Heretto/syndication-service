@@ -11,6 +11,8 @@ import json
 from datetime import datetime, timezone
 from typing import Callable
 
+_UNSET = object()  # sentinel: distinguishes "not provided" from "explicitly set to None"
+
 from sqlalchemy.orm import Session, sessionmaker
 
 from syndication.models import SyncConfig, SyncRecord, SyncRun
@@ -101,26 +103,26 @@ class SyncStateStore:
     def update_sync(
         self,
         sync_id: str,
-        name: str | None = None,
-        cron_expression: str | None = None,
-        deployment_id: str | None = None,
-        credential_id: str | None = None,
-        mapping: dict | None = None,
+        name: str | None = _UNSET,
+        cron_expression: str | None = _UNSET,
+        deployment_id: str | None = _UNSET,
+        credential_id: str | None = _UNSET,
+        mapping: dict | None = _UNSET,
     ) -> SyncConfig:
         db = self._session()
         try:
             cfg = db.query(SyncConfig).filter(SyncConfig.id == sync_id).first()
             if cfg is None:
                 raise ValueError(f"Sync {sync_id!r} not found")
-            if name is not None:
+            if name is not _UNSET:
                 cfg.name = name
-            if cron_expression is not None:
+            if cron_expression is not _UNSET:
                 cfg.cron_expression = cron_expression
-            if deployment_id is not None:
+            if deployment_id is not _UNSET:
                 cfg.deployment_id = deployment_id
-            if credential_id is not None:
+            if credential_id is not _UNSET:
                 cfg.credential_id = credential_id
-            if mapping is not None:
+            if mapping is not _UNSET:
                 cfg.mapping_json = json.dumps(mapping)
             cfg.updated_at = datetime.now(timezone.utc)
             db.commit()

@@ -10,6 +10,7 @@ import asyncio
 from datetime import datetime
 from typing import Annotated, Any
 
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
@@ -129,6 +130,20 @@ class TriggerResponse(BaseModel):
     message: str
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _validate_cron(cron_expression: str | None) -> None:
+    """Raise 422 if *cron_expression* is non-null and not a valid crontab string."""
+    if cron_expression:
+        try:
+            CronTrigger.from_crontab(cron_expression)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid cron expression: {exc}",
+            )
+
+
 # ── Dependency helpers ────────────────────────────────────────────────────────
 
 def _store(req: Request):
@@ -172,6 +187,7 @@ def list_syncs(request: Request, context: OrgCtx):
 @router.post("", response_model=SyncConfigResponse, status_code=status.HTTP_201_CREATED)
 def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
     """Create a new sync configuration and register it with the scheduler."""
+    _validate_cron(body.cron_expression)
     org_id = str(context.organization_id)
     cfg = _store(request).create_sync(
         name=body.name,
@@ -199,6 +215,7 @@ def get_sync(request: Request, sync_id: str, context: OrgCtx):
 @router.put("/{sync_id}", response_model=SyncConfigResponse)
 def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context: OrgCtx):
     """Update mutable fields of an existing sync configuration."""
+    _validate_cron(body.cron_expression)
     cfg = _get_sync_or_404(request, sync_id)
     _assert_same_org(cfg, context)
     updates = body.model_dump(exclude_none=True)
