@@ -157,7 +157,10 @@ def _validate_mapping(connector_id: str, mapping: dict) -> None:
     """Raise 422 if *mapping* contains unknown source field keys (non-noop only)."""
     if connector_id == "noop" or not mapping:
         return
-    invalid = sorted(set(mapping) - _VALID_SOURCE_FIELDS)
+    # category_map is a reserved top-level key the frontend embeds in the mapping
+    # dict to carry category mappings; it is not a source field and must be excluded.
+    field_keys = set(mapping) - {"category_map"}
+    invalid = sorted(field_keys - _VALID_SOURCE_FIELDS)
     if invalid:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

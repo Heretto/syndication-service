@@ -293,7 +293,7 @@ export class SyncDetailComponent implements OnInit {
         message:
           'This will fetch every topic from the source, bypassing the change cursor. ' +
           'It may take longer than a normal sync. Continue?',
-        confirmLabel: 'Force Resync',
+        confirmText: 'Force Resync',
       },
     });
     ref.afterClosed().subscribe(confirmed => {

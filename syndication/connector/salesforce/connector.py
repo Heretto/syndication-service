@@ -138,7 +138,8 @@ class SalesforceConnector(ITargetConnector):
 
     async def validate_mapping(self, mapping: dict) -> list[ValidationError]:
         errors: list[ValidationError] = []
-        invalid = sorted(set(mapping) - _VALID_SOURCE_FIELDS)
+        field_keys = set(mapping) - {"category_map"}
+        invalid = sorted(field_keys - _VALID_SOURCE_FIELDS)
         for key in invalid:
             errors.append(
                 ValidationError(field=key, message=f"{key!r} is not a valid source field.")
