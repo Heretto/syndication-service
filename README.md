@@ -183,24 +183,88 @@ All routes are mounted under `/api/v1` and require a valid JWT. Routes are org-s
 
 ## Running Locally
 
-**Prerequisites:** Python 3.11+, Node.js 24+, a `.env` file with hop-core settings.
+### Prerequisites
+
+- Python 3.11+
+- Node.js 24+
+- [hop-core](https://github.com/Heretto/hop-core) — must be cloned and installed before the syndication service
+
+### Required directory layout
+
+Both repos must be siblings under the same parent directory. This is required for the Docker build and for the frontend SCSS theme imports.
+
+```
+parent-dir/
+├── hop-core/
+└── syndication-service/
+```
+
+### 1 — Install hop-core
 
 ```bash
-# Backend
-pip install -e ".[dev]"
-uvicorn syndication.main:app --reload --port 8000
+git clone https://github.com/Heretto/hop-core.git
+pip install ./hop-core
+```
 
-# Frontend (separate terminal)
-cd frontend
+### 2 — Build hop-ui (required for the frontend)
+
+```bash
+cd hop-core/ui
 npm install
-npm start          # http://localhost:4200, proxies /api → :8000
+npm run build
+cd -
+```
+
+### 3 — Configure environment
+
+```bash
+cd syndication-service
+cp .env.example .env
+```
+
+Open `.env` and set the three required keys before continuing:
+
+| Variable | How to generate |
+|----------|-----------------|
+| `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `APP_SECRET_KEY` | Any random string ≥ 32 characters |
+| `JWT_SECRET_KEY` | Any random string ≥ 32 characters |
+
+All other values in `.env` have working defaults for local development.
+
+### 4 — Run the backend
+
+```bash
+# From syndication-service/
+pip install -e ".[dev]"
 
 # Database migrations (SQLite by default — dev only)
 # Set DATABASE_URL=postgresql+psycopg2://... for production
 alembic upgrade head
 
-# Tests
+uvicorn syndication.main:app --reload --port 8000
+```
+
+### 5 — Run the frontend (separate terminal)
+
+```bash
+cd syndication-service/frontend
+npm install
+npm start          # http://localhost:4200, proxies /api → :8000
+```
+
+### 6 — Run the tests
+
+```bash
 pytest tests/
 ```
 
-> Credentials are stored encrypted using hop-core's Fernet layer. The encryption secret key must be set in the environment before the service can decrypt credentials at runtime.
+### Docker Compose
+
+Requires the same sibling directory layout above. Run from within `syndication-service/`:
+
+```bash
+docker compose up --build
+```
+
+> Credentials are stored encrypted using hop-core's Fernet layer. The `ENCRYPTION_KEY` must be a valid Fernet key (32 url-safe base64-encoded bytes) — any other value causes an immediate startup crash.

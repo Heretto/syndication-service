@@ -7,9 +7,10 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:////app/data/syndication.db
-      - FERNET_KEY=${FERNET_KEY:-}
-      - SECRET_KEY=${SECRET_KEY:-}
-      - DEPLOY_DEFAULT_AUDIENCE=${DEPLOY_DEFAULT_AUDIENCE:-https://api.heretto.com}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - APP_SECRET_KEY=${APP_SECRET_KEY:-}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-}
+      - DEPLOY_DEFAULT_AUDIENCE=${DEPLOY_DEFAULT_AUDIENCE:-private}
     volumes:
       - db-data:/app/data
 

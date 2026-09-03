@@ -1,5 +1,5 @@
-# Build context: /Users/Jarod/_heretto  (parent of both hop-core and syndication-service)
-# docker compose sets context: ../
+# Build context: parent directory (contains both hop-core/ and syndication-service/)
+# docker compose sets context: ../ from within the syndication-service directory
 FROM python:3.12-slim
 WORKDIR /app
 

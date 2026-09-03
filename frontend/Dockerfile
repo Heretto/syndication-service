@@ -1,5 +1,5 @@
-# Build context: /Users/Jarod/_heretto (parent directory)
-# Both hop-core/ and syndication-service/ are present in the context.
+# Build context: parent directory (contains both hop-core/ and syndication-service/)
+# docker compose sets context: ../ so both repos are available during the build.
 #
 # The SCSS theme import in styles.scss uses a relative path 3 levels above
 # the src/ directory, which resolves correctly when the working directory
