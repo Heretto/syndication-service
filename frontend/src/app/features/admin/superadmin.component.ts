@@ -8,7 +8,7 @@ import { HopAdminComponent } from '@heretto/hop-ui';
   imports: [CommonModule, MatIconModule, HopAdminComponent],
   template: `
     <div class="future-targets-banner">
-      <mat-icon class="banner-icon">info_outline</mat-icon>
+      <mat-icon class="banner-icon">info</mat-icon>
       <p class="banner-text">
         Future releases of the Syndication Service will include support for additional
         publishing targets, including ServiceNow and Zendesk. Connector registration
