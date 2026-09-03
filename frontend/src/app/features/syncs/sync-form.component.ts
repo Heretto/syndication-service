@@ -809,7 +809,7 @@ export class SyncFormComponent implements OnInit {
         name:            raw.name ?? undefined,
         cron_expression: cronExpression,
         deployment_id:   raw.deployment_id || undefined,
-        credential_id:   raw.credential_id || undefined,
+        credential_id:   raw.credential_id ?? null,
         mapping,
         publish_mode:    raw.publish_mode ?? 'auto',
       };

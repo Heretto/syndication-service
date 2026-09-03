@@ -52,6 +52,10 @@ def _build_lifespan(hop_lifespan):
             app.state.executor = executor
             app.state.scheduler = scheduler
 
+            orphans = store.fail_orphaned_runs()
+            if orphans:
+                log.warning("Marked %d orphaned run(s) as failed on startup.", orphans)
+
             scheduler.start()
             scheduler.load_all()
             log.info("Syndication scheduler started.")

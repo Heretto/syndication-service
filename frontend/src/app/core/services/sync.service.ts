@@ -46,7 +46,7 @@ export interface UpdateSyncInput {
   name?: string;
   cron_expression?: string | null;
   deployment_id?: string;
-  credential_id?: string;
+  credential_id?: string | null;
   mapping?: Record<string, unknown>;
   publish_mode?: string;
 }

@@ -347,6 +347,25 @@ class SyncStateStore:
 
         self._with_session(_fail)
 
+    def fail_orphaned_runs(self) -> int:
+        """Mark any run still in 'running' state as failed.
+
+        Called at startup so runs orphaned by a mid-run server restart
+        don't stay stuck as 'running' in the history indefinitely.
+        Returns the number of rows updated.
+        """
+        def _fail_orphans(db: Session) -> int:
+            return db.query(SyncRun).filter(SyncRun.status == "running").update(
+                {
+                    "status": "failed",
+                    "completed_at": datetime.now(timezone.utc),
+                    "error_message": "Run orphaned by server restart.",
+                },
+                synchronize_session=False,
+            )
+
+        return self._with_session(_fail_orphans)
+
     def list_runs(self, sync_id: str, limit: int = 20) -> list[SyncRun]:
         db = self._session()
         try:

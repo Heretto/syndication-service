@@ -267,9 +267,11 @@ def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context
     if body.mapping is not None:
         _validate_mapping(cfg.connector_id, body.mapping)
     updates = body.model_dump(exclude_none=True)
-    # Allow explicitly clearing cron_expression to None (manual-only mode)
+    # Allow explicit None to clear nullable fields
     if "cron_expression" in body.model_fields_set and body.cron_expression is None:
         updates["cron_expression"] = None
+    if "credential_id" in body.model_fields_set and body.credential_id is None:
+        updates["credential_id"] = None
     cfg = _store(request).update_sync(sync_id, **updates)
     # Reschedule whenever cron_expression was included in the request
     if "cron_expression" in body.model_fields_set:

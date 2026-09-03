@@ -80,9 +80,11 @@ class SyncPipeline:
     """Orchestrates a single sync run between one source adapter and one connector.
 
     Args:
-        adapter:   The source adapter providing content (e.g. DeployAdapter).
-        connector: The target connector receiving content (e.g. SalesforceConnector).
-        mapping:   Connector-specific field-mapping configuration dict.
+        adapter:      The source adapter providing content (e.g. DeployAdapter).
+        connector:    The target connector receiving content (e.g. SalesforceConnector).
+        mapping:      Connector-specific field-mapping configuration dict.
+        auto_publish: When ``True`` (default), call ``publish_article`` after each
+                      successful upsert.  Set to ``False`` to leave articles as drafts.
     """
 
     def __init__(

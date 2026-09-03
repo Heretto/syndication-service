@@ -302,7 +302,7 @@ export class SyncDetailComponent implements OnInit {
         confirmText: 'Force Resync',
       },
     });
-    ref.afterClosed().subscribe(confirmed => {
+    ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(confirmed => {
       if (!confirmed) return;
       this.syncService.trigger(syncId, true)
         .pipe(takeUntilDestroyed(this.destroyRef))
@@ -319,21 +319,25 @@ export class SyncDetailComponent implements OnInit {
     this._pollSub?.unsubscribe();
     this.runsLoading = true;
 
+    let polls = 0;
     this._pollSub = interval(3000).pipe(
       switchMap(() => this.syncService.getRuns(syncId)),
     ).subscribe({
       next: runs => {
         this.runs = [...runs];
+        polls++;
         // Only watch the most recent run — old stuck runs must not block the spinner
         const latestIsRunning = runs.length > 0 && runs[0].status === 'running';
-        if (!latestIsRunning) {
+        if (!latestIsRunning || polls >= 200) {  // 200 × 3s ≈ 10 min deadline
           this.runsLoading = false;
           this._pollSub?.unsubscribe();
           this._pollSub = null;
-          // Refresh sync config so Last Synced / high_water_mark updates
-          this.syncService.getById(syncId)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(sync => { this.sync = sync; });
+          if (!latestIsRunning) {
+            // Refresh sync config so Last Synced / high_water_mark updates
+            this.syncService.getById(syncId)
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe(sync => { this.sync = sync; });
+          }
         }
       },
       error: () => { this.runsLoading = false; },
