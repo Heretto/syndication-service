@@ -385,10 +385,49 @@ class SalesforceConnector(ITargetConnector):
                 )
 
     async def archive_article(self, target_article_id: str) -> None:
-        """Archive (delete draft) a Knowledge article."""
+        """Remove a Knowledge article, handling draft and published states.
+
+        Draft/Archived KAVs can be DELETEd directly.  Online (published)
+        articles must be moved to Archived first via the standard action
+        (which requires the KA ID, not the KAV ID), then deleted.
+        Articles already absent from Salesforce are silently ignored.
+        """
         base = self._base_url()
-        url = f"{base}/sobjects/{self._kav_type}/{target_article_id}"
-        await self._request("DELETE", url)
+
+        # Fetch current publish status and parent KA ID in one query.
+        soql = (
+            f"SELECT Id, PublishStatus, KnowledgeArticleId FROM {self._kav_type} "
+            f"WHERE Id = '{target_article_id}' LIMIT 1"
+        )
+        q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
+        records = q_resp.json().get("records", [])
+        if not records:
+            # Already removed from Salesforce — nothing to do.
+            return
+
+        rec = records[0]
+        publish_status = rec.get("PublishStatus", "Draft")
+        kav_id = rec["Id"]
+
+        if publish_status == "Online":
+            # Published articles cannot be DELETEd directly; archive first.
+            ka_id = rec["KnowledgeArticleId"]
+            archive_url = (
+                f"{self._instance_url}/services/data/v{self._api_version}"
+                f"/actions/standard/archiveKnowledgeArticles"
+            )
+            await self._request("POST", archive_url, json={"articleIds": [ka_id]})
+            # Re-fetch the now-Archived KAV id (archiving may create a new version row).
+            soql2 = (
+                f"SELECT Id FROM {self._kav_type} "
+                f"WHERE KnowledgeArticleId = '{ka_id}' AND PublishStatus = 'Archived' LIMIT 1"
+            )
+            q2 = await self._request("GET", f"{base}/query", params={"q": soql2})
+            archived = q2.json().get("records", [])
+            if archived:
+                kav_id = archived[0]["Id"]
+
+        await self._request("DELETE", f"{base}/sobjects/{self._kav_type}/{kav_id}")
 
     async def deferred_link_fixup(
         self,

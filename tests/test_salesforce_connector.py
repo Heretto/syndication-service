@@ -450,16 +450,53 @@ class TestPublishArticle:
 # ── archive_article ───────────────────────────────────────────────────────────
 
 class TestArchiveArticle:
-    async def test_archive_makes_delete_request(self):
+    async def test_archive_draft_makes_delete_request(self):
         conn = _conn()
         art_id = "ka01AAA"
         with respx.mock() as mock:
-            route = mock.delete(
-                f"{BASE}/sobjects/{KAV_TYPE}/{art_id}"
-            ).mock(return_value=httpx.Response(204))
+            mock.get(f"{BASE}/query").mock(return_value=httpx.Response(200, json={
+                "records": [{"Id": art_id, "PublishStatus": "Draft", "KnowledgeArticleId": "ka001KA"}]
+            }))
+            delete_route = mock.delete(f"{BASE}/sobjects/{KAV_TYPE}/{art_id}").mock(
+                return_value=httpx.Response(204)
+            )
             await conn.archive_article(art_id)
 
-        assert route.called
+        assert delete_route.called
+
+    async def test_archive_already_absent_is_noop(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(f"{BASE}/query").mock(return_value=httpx.Response(200, json={"records": []}))
+            await conn.archive_article("ka01GONE")
+        # No DELETE should have been attempted — no error means success
+
+    async def test_archive_online_article_archives_then_deletes(self):
+        conn = _conn()
+        art_id = "ka01PUB"
+        ka_id = "ka001KA"
+        archived_kav_id = "ka01ARC"
+        with respx.mock() as mock:
+            # First query: status check returns Online
+            mock.get(f"{BASE}/query").mock(side_effect=[
+                httpx.Response(200, json={"records": [
+                    {"Id": art_id, "PublishStatus": "Online", "KnowledgeArticleId": ka_id}
+                ]}),
+                httpx.Response(200, json={"records": [{"Id": archived_kav_id}]}),
+            ])
+            archive_route = mock.post(
+                "https://myorg.my.salesforce.com/services/data/v65.0/actions/standard/archiveKnowledgeArticles"
+            ).mock(return_value=httpx.Response(200, json=[{"isSuccess": True}]))
+            delete_route = mock.delete(
+                f"{BASE}/sobjects/{KAV_TYPE}/{archived_kav_id}"
+            ).mock(return_value=httpx.Response(204))
+
+            await conn.archive_article(art_id)
+
+        assert archive_route.called
+        import json as _json
+        assert _json.loads(archive_route.calls[0].request.content) == {"articleIds": [ka_id]}
+        assert delete_route.called
 
 
 # ── upload_binary ─────────────────────────────────────────────────────────────
