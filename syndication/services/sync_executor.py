@@ -123,10 +123,33 @@ class SyncExecutorService:
             if peek and peek.removed_uuids:
                 self._store.mark_articles_archived(sync_id, peek.removed_uuids)
 
+            # For a force full run, any article that was previously active but
+            # wasn't returned by the current structure walk has been removed from
+            # the source and should be archived in the target.
+            stale_removed = 0
+            if force_full:
+                active_records = self._store.list_records(sync_id, status="active", limit=10_000)
+                synced_uuids = set(result.article_mappings.keys())
+                stale_uuids: list[str] = []
+                for rec in active_records:
+                    if rec.source_uuid in synced_uuids:
+                        continue
+                    try:
+                        await connector.archive_article(rec.target_article_id)
+                        stale_removed += 1
+                        stale_uuids.append(rec.source_uuid)
+                    except Exception as exc:
+                        log.warning(
+                            "Failed to archive stale article %s: %s",
+                            rec.target_article_id, exc,
+                        )
+                if stale_uuids:
+                    self._store.mark_articles_archived(sync_id, stale_uuids)
+
             self._store.complete_run(
                 run_id=run_id,
                 changed_count=result.changed_count,
-                removed_count=result.removed_count,
+                removed_count=result.removed_count + stale_removed,
                 links_fixed=result.links_fixed,
                 warnings=result.warnings or None,
             )

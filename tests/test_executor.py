@@ -376,3 +376,99 @@ class TestRemovedArticlesFlow:
             peek_call.args[0] if peek_call.args else None
         )
         assert since_arg == "2026-07-15T10:00:00.000Z"
+
+
+# ── Force-full removal flow ───────────────────────────────────────────────────
+
+class TestForceFullRemovals:
+    """Force-full runs must archive articles that are no longer in the source."""
+
+    def _stale_record(self, source_uuid="uuid-stale", target_id="sf-stale-999"):
+        rec = MagicMock()
+        rec.source_uuid = source_uuid
+        rec.target_article_id = target_id
+        return rec
+
+    async def test_stale_articles_archived_in_connector(
+        self, executor, state_store, mock_connector
+    ):
+        stale = self._stale_record()
+        state_store.list_records = MagicMock(return_value=[stale])
+        mock_connector.archive_article = AsyncMock()
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a", "uuid-b": "target-b"},
+                removed_count=0,
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        mock_connector.archive_article.assert_awaited_once_with("sf-stale-999")
+
+    async def test_stale_articles_marked_archived_in_store(
+        self, executor, state_store, mock_connector
+    ):
+        stale = self._stale_record()
+        state_store.list_records = MagicMock(return_value=[stale])
+        mock_connector.archive_article = AsyncMock()
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a"},
+                removed_count=0,
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        state_store.mark_articles_archived.assert_called_once_with(
+            "sync-001", ["uuid-stale"]
+        )
+
+    async def test_stale_count_added_to_removed_count(
+        self, executor, state_store, mock_connector
+    ):
+        stale = self._stale_record()
+        state_store.list_records = MagicMock(return_value=[stale])
+        mock_connector.archive_article = AsyncMock()
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a"},
+                removed_count=0,
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        complete_kwargs = state_store.complete_run.call_args.kwargs
+        assert complete_kwargs.get("removed_count") == 1
+
+    async def test_current_articles_not_archived(
+        self, executor, state_store, mock_connector
+    ):
+        active = self._stale_record(source_uuid="uuid-a", target_id="target-a")
+        state_store.list_records = MagicMock(return_value=[active])
+        mock_connector.archive_article = AsyncMock()
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a"},
+                removed_count=0,
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        mock_connector.archive_article.assert_not_awaited()
+        state_store.mark_articles_archived.assert_not_called()
+
+    async def test_incremental_run_does_not_query_active_records(
+        self, executor, state_store
+    ):
+        state_store.list_records = MagicMock(return_value=[])
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result())
+            await executor.execute("sync-001")  # no force_full
+
+        state_store.list_records.assert_not_called()
