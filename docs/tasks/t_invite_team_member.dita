@@ -1,60 +1,60 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
-<task id="t_invite_team_member">
-  <title>Invite a Team Member</title>
-  <shortdesc>Send an invitation to a colleague so they can access the Syndication Service under
+<task id="t_invite_team_member" class="- topic/topic task/task ">
+  <title class="- topic/title ">Invite a Team Member</title>
+  <shortdesc class="- topic/shortdesc ">Send an invitation to a colleague so they can access the Syndication Service under
     your organization.</shortdesc>
-  <prolog>
-    <metadata>
-      <audience type="user" othertype="admin"/>
+  <prolog class="- topic/prolog ">
+    <metadata class="- topic/metadata ">
+      <audience type="user" othertype="admin" class="- topic/audience "/>
     </metadata>
   </prolog>
-  <taskbody>
-    <prereq>
-      <p>You must have the Admin or System Administrator role to invite new members.</p>
+  <taskbody class="- topic/body task/taskbody ">
+    <prereq class="- topic/section task/prereq ">
+      <p class="- topic/p ">You must have the Admin or System Administrator role to invite new members.</p>
     </prereq>
 
-    <steps>
-      <step>
-        <cmd>In the navigation menu, click <uicontrol>Administration</uicontrol>.</cmd>
+    <steps class="- topic/ol task/steps ">
+      <step class="- topic/li task/step ">
+        <cmd class="- topic/ph task/cmd ">In the navigation menu, click <uicontrol class="+ topic/ph ui-d/uicontrol ">Administration</uicontrol>.</cmd>
       </step>
-      <step>
-        <cmd>Click <uicontrol>Invite Member</uicontrol>.</cmd>
-        <info>The Invite Member dialog opens.</info>
+      <step class="- topic/li task/step ">
+        <cmd class="- topic/ph task/cmd ">Click <uicontrol class="+ topic/ph ui-d/uicontrol ">Invite Member</uicontrol>.</cmd>
+        <info class="- topic/itemgroup task/info ">The Invite Member dialog opens.</info>
       </step>
-      <step>
-        <cmd>Enter the invitee's email address in the <uicontrol>Email</uicontrol> field.</cmd>
+      <step class="- topic/li task/step ">
+        <cmd class="- topic/ph task/cmd ">Enter the invitee's email address in the <uicontrol class="+ topic/ph ui-d/uicontrol ">Email</uicontrol> field.</cmd>
       </step>
-      <step>
-        <cmd>Select the role to assign to the invitee.</cmd>
-        <choicetable>
-          <chhead>
-            <choptionhd>Role</choptionhd>
-            <chdeschd>Access level</chdeschd>
+      <step class="- topic/li task/step ">
+        <cmd class="- topic/ph task/cmd ">Select the role to assign to the invitee.</cmd>
+        <choicetable class="- topic/simpletable task/choicetable ">
+          <chhead class="- topic/sthead task/chhead ">
+            <choptionhd class="- topic/stentry task/choptionhd ">Role</choptionhd>
+            <chdeschd class="- topic/stentry task/chdeschd ">Access level</chdeschd>
           </chhead>
-          <chrow>
-            <choption>Member</choption>
-            <chdesc>Can create, configure, and run syncs. Cannot access Administration or manage
+          <chrow class="- topic/strow task/chrow ">
+            <choption class="- topic/stentry task/choption ">Member</choption>
+            <chdesc class="- topic/stentry task/chdesc ">Can create, configure, and run syncs. Cannot access Administration or manage
               other users.</chdesc>
           </chrow>
-          <chrow>
-            <choption>Admin</choption>
-            <chdesc>All Member access plus the ability to manage members and invitations in
+          <chrow class="- topic/strow task/chrow ">
+            <choption class="- topic/stentry task/choption ">Admin</choption>
+            <chdesc class="- topic/stentry task/chdesc ">All Member access plus the ability to manage members and invitations in
               Administration.</chdesc>
           </chrow>
         </choicetable>
       </step>
-      <step>
-        <cmd>Click <uicontrol>Send Invitation</uicontrol>.</cmd>
-        <stepresult>An invitation is sent to the specified email address and appears in the
-          <uicontrol>Invitations</uicontrol> table on the Administration page. The invitee must
+      <step class="- topic/li task/step ">
+        <cmd class="- topic/ph task/cmd ">Click <uicontrol class="+ topic/ph ui-d/uicontrol ">Send Invitation</uicontrol>.</cmd>
+        <stepresult class="- topic/itemgroup task/stepresult ">An invitation is sent to the specified email address and appears in the
+          <uicontrol class="+ topic/ph ui-d/uicontrol ">Invitations</uicontrol> table on the Administration page. The invitee must
           click the link in the invitation email to complete registration and gain
           access.</stepresult>
       </step>
     </steps>
 
-    <postreq>
-      <p>If the invitee does not receive the invitation email, return to the Administration page
+    <postreq class="- topic/section task/postreq ">
+      <p class="- topic/p ">If the invitee does not receive the invitation email, return to the Administration page
         and use the copy link button on their invitation row to share the invitation link
         directly.</p>
     </postreq>

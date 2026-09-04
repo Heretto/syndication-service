@@ -1,48 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
-<task id="t_trigger_sync">
-  <title>Trigger an Incremental Sync Run</title>
-  <shortdesc>Trigger a sync run immediately to publish content that has changed in Heretto
-    Deploy since the last successful run, without waiting for the next scheduled run.</shortdesc>
-  <prolog>
-    <metadata>
-      <audience type="user"/>
-    </metadata>
-  </prolog>
-  <taskbody>
-    <context>
-      <p>An incremental sync run fetches only the content that has changed since the previous
-        successful run, using a high-water-mark cursor. This is the most efficient way to keep
-        your target system up to date and is safe to trigger at any time.</p>
-      <p>If you need to reprocess all content regardless of change date, use
-        <xref href="t_force_full_resync.dita"/> instead.</p>
-    </context>
-
-    <steps>
-      <step>
-        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
-      </step>
-      <step>
-        <cmd>Click the name of the sync you want to run.</cmd>
-        <info>The Sync Detail page opens.</info>
-      </step>
-      <step>
-        <cmd>Click <uicontrol>Sync Changes</uicontrol>.</cmd>
-        <stepresult>A new run is queued. The run history table updates to show the new run with a
-          status of <userinput>Pending</userinput>, which changes to <userinput>Running</userinput>
-          once the run starts. Refresh the page to see the latest status.</stepresult>
-      </step>
-    </steps>
-
-    <result>
-      <p>When the run finishes, its status changes to <userinput>Completed</userinput> and the
-        changed count reflects the number of articles that were created or updated in the target
-        system. If the status is <userinput>Failed</userinput> or <userinput>Error</userinput>,
-        review the error message recorded with the run.</p>
-    </result>
-
-    <note type="important">Do not trigger a new run while a run for the same sync is already
-      in <userinput>Running</userinput> status. Wait for the current run to finish
-      first.</note>
-  </taskbody>
-</task>
+<task id="t_trigger_sync" class="- topic/topic task/task "><title class="- topic/title ">Trigger an Incremental Sync</title><shortdesc class="- topic/shortdesc ">Trigger a sync  immediately to publish content that has changed in Heretto CCMS since the last successful run, without waiting for the next scheduled run.</shortdesc><prolog class="- topic/prolog "><metadata class="- topic/metadata "><audience type="user" class="- topic/audience "/></metadata></prolog><taskbody class="- topic/body task/taskbody "><prereq class="- topic/section task/prereq "><p class="- topic/p ">You need to publish your Deployment in Heretto CCMS prior to running a sync for the syndication service to pick up the latest content changes from Deploy API.</p></prereq><context class="- topic/section task/context ">
+            <p class="- topic/p ">An incremental sync run fetches only the content that has changed since the previous successful run. This is the most efficient way to keep your target system up to date and is safe to trigger at any time.</p>
+            <p class="- topic/p ">If you need to reprocess all content regardless of change date, use <xref href="t_force_full_resync.dita" class="- topic/xref "/> instead.</p>
+        </context><steps class="- topic/ol task/steps "><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">In the navigation menu, click <uicontrol class="+ topic/ph ui-d/uicontrol ">Syncs</uicontrol>.</cmd></step><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">Click the name of the sync you want to run.</cmd><info class="- topic/itemgroup task/info ">The Sync Detail page opens.</info></step><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">Click <uicontrol class="+ topic/ph ui-d/uicontrol ">Sync Changes</uicontrol>.</cmd><stepresult class="- topic/itemgroup task/stepresult ">A new run is queued. The run history table updates to show the new run with a status of <userinput class="+ topic/ph sw-d/userinput ">Pending</userinput>, which changes to <userinput class="+ topic/ph sw-d/userinput ">Running</userinput> once the run starts. Refresh the page to see the latest status.</stepresult></step></steps><result class="- topic/section task/result ">
+            <p class="- topic/p ">When the run finishes, its status changes to <userinput class="+ topic/ph sw-d/userinput ">Completed</userinput> and the changed count reflects the number of articles that were created or updated in the target system. If the status is <userinput class="+ topic/ph sw-d/userinput ">Failed</userinput> or <userinput class="+ topic/ph sw-d/userinput ">Error</userinput>, review the error message recorded with the run.</p><p class="- topic/p "><note type="important" class="- topic/note ">Do not trigger a new run while a run for the same sync is already in <userinput class="+ topic/ph sw-d/userinput ">Running</userinput> status. Wait for the current run to finish first.</note></p>
+        </result></taskbody></task>

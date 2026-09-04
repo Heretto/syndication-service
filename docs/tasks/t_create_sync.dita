@@ -1,67 +1,11 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
-<task id="t_create_sync">
-  <title>Create a Sync</title>
-  <shortdesc>Create a sync configuration to define how content moves from Heretto Deploy to a
-    target system such as Salesforce Knowledge.</shortdesc>
-  <prolog>
-    <metadata>
-      <audience type="user"/>
-    </metadata>
-  </prolog>
-  <taskbody>
-    <prereq>
-      <p>Before you create a sync, confirm that:</p>
-      <ul>
-        <li>You have a Deployment ID from your Heretto Deploy instance.</li>
-        <li>You have the credentials needed to connect to your target system (for example,
+<task id="t_create_sync" class="- topic/topic task/task "><title class="- topic/title ">Create a Sync</title><shortdesc class="- topic/shortdesc ">Create a sync configuration to define how content moves from Heretto Deploy API to a
+    target system such as Salesforce Knowledge.</shortdesc><prolog class="- topic/prolog "><metadata class="- topic/metadata "><audience type="user" class="- topic/audience "/></metadata></prolog><taskbody class="- topic/body task/taskbody "><prereq class="- topic/section task/prereq ">
+      <p class="- topic/p ">Before you create a sync, confirm that:</p>
+      <ul class="- topic/ul "><li class="- topic/li ">You have a Deployment ID from your Heretto CCMS instance.</li><li class="- topic/li ">You have the credentials needed to connect to your target system (for example,
           Salesforce client ID and client secret), or a saved credential already exists in the
-          Syndication Service.</li>
-        <li>For Salesforce targets: any data category groups you want to map have been created in
-          Salesforce Setup.</li>
-      </ul>
-    </prereq>
-
-    <steps>
-      <step>
-        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
-      </step>
-      <step>
-        <cmd>Click <uicontrol>New Sync</uicontrol>.</cmd>
-        <info>The Create Sync form opens.</info>
-      </step>
-
-      <step conref="conref_sync_form.dita#sync-form-steps/step-enter-name">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-select-adapter">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-select-connector">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-deployment-id">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-select-credential">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-configure-schedule">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-field-mapping">
-        <cmd/>
-      </step>
-      <step conref="conref_sync_form.dita#sync-form-steps/step-category-mapping">
-        <cmd/>
-      </step>
-
-      <step>
-        <cmd>Click <uicontrol>Create Sync</uicontrol>.</cmd>
-        <stepresult>The sync is saved and you are taken to the Sync Detail page. If you
+          Syndication Service.</li><li class="- topic/li ">For Salesforce targets: any data category groups you want to map have been created in
+          Salesforce Setup.</li></ul>
+    </prereq><steps class="- topic/ol task/steps "><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">In the navigation menu, click <uicontrol class="+ topic/ph ui-d/uicontrol ">Syncs</uicontrol>.</cmd></step><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">Click <uicontrol class="+ topic/ph ui-d/uicontrol ">New Sync</uicontrol>.</cmd><info class="- topic/itemgroup task/info ">The Create Sync form opens.</info></step><step conref="conref_sync_form.dita#sync-form-steps/step-enter-name" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-select-adapter" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-select-connector" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-deployment-id" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-select-credential" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-configure-schedule" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-field-mapping" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step conref="conref_sync_form.dita#sync-form-steps/step-category-mapping" class="- topic/li task/step "><cmd class="- topic/ph task/cmd "/></step><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">Click <uicontrol class="+ topic/ph ui-d/uicontrol ">Create Sync</uicontrol>.</cmd><stepresult class="- topic/itemgroup task/stepresult ">The sync is saved and you are taken to the Sync Detail page. If you
           configured an automatic schedule, the sync will run at the next scheduled time.
-          To run it immediately, see <xref href="t_trigger_sync.dita"/>.</stepresult>
-      </step>
-    </steps>
-  </taskbody>
-</task>
+          To run it immediately, see <xref href="t_trigger_sync.dita" class="- topic/xref "/>.</stepresult></step></steps></taskbody></task>

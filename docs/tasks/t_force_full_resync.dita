@@ -1,57 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE task PUBLIC "-//OASIS//DTD DITA Task//EN" "task.dtd">
-<task id="t_force_full_resync">
-  <title>Force a Full Resync</title>
-  <shortdesc>Trigger a full resync to reprocess all content in the Heretto Deploy deployment,
-    regardless of when each article was last modified.</shortdesc>
-  <prolog>
-    <metadata>
-      <audience type="user"/>
-    </metadata>
-  </prolog>
-  <taskbody>
-    <context>
-      <p>A full resync walks the complete structure of your Heretto Deploy deployment and
-        processes every article it finds. Unlike an incremental sync, a full resync does not use
-        the high-water-mark cursor, so it does not advance the change cursor when it completes.
+<task id="t_force_full_resync" class="- topic/topic task/task "><title class="- topic/title ">Force a Full Resync</title><shortdesc class="- topic/shortdesc ">Trigger a full resync to reprocess all content in the Heretto  deployment,
+    regardless of when each article was last modified.</shortdesc><prolog class="- topic/prolog "><metadata class="- topic/metadata "><audience type="user" class="- topic/audience "/></metadata></prolog><taskbody class="- topic/body task/taskbody "><prereq class="- topic/section task/prereq "><p class="- topic/p ">You need to publish your Deployment in Heretto CCMS prior to running a sync for the syndication service to pick up the latest content changes from Deploy API.</p></prereq><context class="- topic/section task/context ">
+      <p class="- topic/p ">A full resync walks the complete structure of your Heretto  deployment and
+        updates the articles in Salesforce. 
         The next scheduled or manual incremental sync will continue from the same cursor
         position as before the full resync.</p>
-      <p>Use a full resync when:</p>
-      <ul>
-        <li>Articles exist in Heretto Deploy that were never captured by the change cursor, for
-          example content published before sync tracking began.</li>
-        <li>You suspect the target system is missing articles or has content that is out of
-          date.</li>
-        <li>You have made changes to the field mapping or data category mapping and want those
-          changes applied to all articles, not just newly changed ones.</li>
-      </ul>
-      <note type="important">A full resync processes every article in your deployment and may
-        take significantly longer than an incremental sync run, depending on the size of your
-        content library.</note>
-    </context>
-
-    <steps>
-      <step>
-        <cmd>In the navigation menu, click <uicontrol>Syncs</uicontrol>.</cmd>
-      </step>
-      <step>
-        <cmd>Click the name of the sync you want to resync.</cmd>
-        <info>The Sync Detail page opens.</info>
-      </step>
-      <step>
-        <cmd>Click <uicontrol>Full Resync</uicontrol>.</cmd>
-        <info>A confirmation prompt may appear. Confirm that you want to proceed.</info>
-        <stepresult>A full resync run is queued. The run history table updates to show the new
-          run with a status of <userinput>Pending</userinput>. Refresh the page to see the latest
-          status as the run progresses.</stepresult>
-      </step>
-    </steps>
-
-    <result>
-      <p>When the run finishes, its status changes to <userinput>Completed</userinput> and the
-        changed count reflects the total number of articles processed. The high-water-mark cursor
-        is not updated; subsequent incremental runs will pick up changes from the same point as
+      <p class="- topic/p ">Use a full resync when:</p>
+      <ul class="- topic/ul "><li class="- topic/li ">New topics exist in Heretto deployment that weren't captured in the last sync.</li><li class="- topic/li ">You suspect the target system is missing articles or has content that is out of
+          date.</li><li class="- topic/li ">You have made changes to the field mapping or data category mapping and want those
+          changes applied to all articles, not just newly changed ones.</li><li class="- topic/li ">You have removed topics from a deployment and want those removals reflected in
+          Salesforce Knowledge. A full resync detects articles that no longer have a matching
+          source topic and archives or removes them automatically. See
+          <xref href="../concepts/c_deleting-topics-from-a-deployment.dita" class="- topic/xref "/>.</li></ul>
+      <note type="important" class="- topic/note ">A full resync processes every topic in your deployment and may
+        take significantly longer than an incremental sync, depending on the size of your
+        deployment map.</note>
+    </context><steps class="- topic/ol task/steps "><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">In the navigation menu, click <uicontrol class="+ topic/ph ui-d/uicontrol ">Syncs</uicontrol>.</cmd></step><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">Click the name of the sync you want to resync.</cmd><info class="- topic/itemgroup task/info ">The Sync Detail page opens.</info></step><step class="- topic/li task/step "><cmd class="- topic/ph task/cmd ">Click <uicontrol class="+ topic/ph ui-d/uicontrol ">Full Resync</uicontrol>.</cmd><info class="- topic/itemgroup task/info ">A confirmation prompt  appears. Confirm that you want to proceed.</info><stepresult class="- topic/itemgroup task/stepresult ">A full resync  is queued. The  history table updates to show the new
+          sync with a status of <userinput class="+ topic/ph sw-d/userinput ">Running</userinput>. Refresh the page to see the latest
+          status as the run progresses.</stepresult></step></steps><result class="- topic/section task/result ">
+      <p class="- topic/p ">When the sync finishes, its status changes to <userinput class="+ topic/ph sw-d/userinput ">Completed</userinput> and the
+        changed count reflects the total number of articles processed. Subsequent incremental syncs will pick up changes from the same point as
         before the resync.</p>
-    </result>
-  </taskbody>
-</task>
+    </result></taskbody></task>

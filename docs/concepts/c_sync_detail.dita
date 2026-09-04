@@ -1,58 +1,25 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
-<concept id="c_sync_detail">
-  <title>Sync Detail</title>
-  <shortdesc>The Sync Detail page displays the full configuration of a single sync and gives you
-    controls to run, edit, or delete it.</shortdesc>
-  <conbody>
-    <p>To open the Sync Detail page, click a sync name from the Dashboard or the Syncs list. The
-      page is divided into a configuration summary at the top and a run history table at the
-      bottom.</p>
-
-    <section id="section_config_summary">
-      <title>Configuration summary</title>
-      <p>The configuration summary shows the values set when the sync was created or last edited,
-        including the sync name, source adapter, target connector, Deployment ID, assigned
-        credential, and schedule. If no automatic schedule is configured, the schedule displays
-        as <userinput>Manual sync only</userinput>.</p>
-    </section>
-
-    <section id="section_actions">
-      <title>Action buttons</title>
-      <p>Four action buttons appear near the top of the page:</p>
-      <dl>
-        <dlentry>
-          <dt><uicontrol>Sync Changes</uicontrol></dt>
-          <dd>Triggers an incremental sync run. The service fetches only content that has changed
-            since the last successful run. Use this for routine on-demand publishing.</dd>
-        </dlentry>
-        <dlentry>
-          <dt><uicontrol>Full Resync</uicontrol></dt>
-          <dd>Triggers a full resync that walks the entire Heretto Deploy structure and processes
+<concept id="c_sync_detail" class="- topic/topic concept/concept "><title class="- topic/title ">Sync Detail</title><shortdesc class="- topic/shortdesc ">The Sync Detail page shows the full configuration of a single sync.</shortdesc><conbody class="- topic/body  concept/conbody "><p class="- topic/p ">To open the Sync Detail page, click a sync name from the Dashboard or the Syncs list. The
+      page is divided into a configuration summary on the left and a run history table on the right.</p><section id="section_config_summary" class="- topic/section ">
+      <title class="- topic/title ">Configuration summary</title>
+      <p class="- topic/p ">The configuration summary shows the values set when the sync was created or last edited,
+        including the sync name at the top of the page,  Deployment ID, target connector UUID, assigned
+        credential, publish mode, and schedule. If no automatic schedule is configured, the schedule displays
+        as <userinput class="+ topic/ph sw-d/userinput ">Manual sync only</userinput>.</p>
+    </section><section id="section_actions" class="- topic/section ">
+      <title class="- topic/title ">Action buttons</title>
+      <p class="- topic/p ">Four action buttons appear near the top of the page:</p>
+      <dl class="- topic/dl "><dlentry class="- topic/dlentry "><dt class="- topic/dt "><uicontrol class="+ topic/ph ui-d/uicontrol ">Edit</uicontrol></dt><dd class="- topic/dd ">Opens the sync configuration form so you can change the sync name, schedule, field
+            mapping, or other settings.</dd></dlentry><dlentry class="- topic/dlentry "><dt class="- topic/dt "><uicontrol class="+ topic/ph ui-d/uicontrol ">Sync Changes</uicontrol></dt><dd class="- topic/dd ">Triggers an incremental sync run. The service fetches only content that has changed
+            since the last successful run. Use this for routine on-demand publishing.</dd></dlentry><dlentry class="- topic/dlentry "><dt class="- topic/dt "><uicontrol class="+ topic/ph ui-d/uicontrol ">Full Resync</uicontrol></dt><dd class="- topic/dd ">Triggers a full resync that walks the entire Heretto Deploy structure and processes
             every article regardless of modification date. Use this when you suspect content is
-            out of sync or after a long gap in sync activity.</dd>
-        </dlentry>
-        <dlentry>
-          <dt><uicontrol>Edit</uicontrol></dt>
-          <dd>Opens the sync configuration form so you can change the sync name, schedule, field
-            mapping, or other settings.</dd>
-        </dlentry>
-        <dlentry>
-          <dt><uicontrol>Delete</uicontrol></dt>
-          <dd>Permanently deletes the sync configuration and removes its automatic schedule. This
-            action cannot be undone.</dd>
-        </dlentry>
-      </dl>
-    </section>
-
-    <section id="section_run_history">
-      <title>Run history</title>
-      <p>The run history table at the bottom of the page lists recent runs for this sync. Each
+            out of sync or after a long gap in sync activity.</dd></dlentry><dlentry class="- topic/dlentry "><dt class="- topic/dt "><uicontrol class="+ topic/ph ui-d/uicontrol ">Delete</uicontrol></dt><dd class="- topic/dd ">Permanently deletes the sync configuration and removes its automatic schedule. This
+            action cannot be undone.</dd></dlentry></dl>
+    </section><section id="section_run_history" class="- topic/section ">
+      <title class="- topic/title ">Recent Syncs</title>
+      <p class="- topic/p ">The Recent Syncs table at the bottom of the page lists recent runs for this sync. Each
         row shows the run status, the time the run started and completed, and the number of
-        articles changed. Click <uicontrol>View all</uicontrol> to open the full Run History page
-        filtered to this sync.</p>
-      <p>For a description of each run status, see
-        <xref href="c_run_history.dita"/>.</p>
-    </section>
-  </conbody>
-</concept>
+        articles changed. </p>
+      <p class="- topic/p ">For a description of each run status, see
+        <xref href="c_sync_history.dita" class="- topic/xref "/>.</p>
+    </section></conbody></concept>

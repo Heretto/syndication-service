@@ -1,0 +1,20 @@
+<!DOCTYPE concept PUBLIC "-//OASIS//DTD DITA Concept//EN" "concept.dtd">
+<concept id="concept-6752" xml:lang="en-us" class="- topic/topic concept/concept "><title class="- topic/title ">How removed content is handled during a sync</title><shortdesc class="- topic/shortdesc ">When a topic is removed from a Heretto deployment and a full resync is
+      run, the syndication service compares the current deployment structure against
+      previously synced articles and archives or flags any articles that no longer
+      have a corresponding source topic.</shortdesc><conbody class="- topic/body  concept/conbody "><p class="- topic/p ">The syndication service tracks every article it creates in Salesforce
+        Knowledge. During a full resync, it walks the current deployment structure
+        and compares the result against that record. Any article whose source topic
+        is no longer present is considered stale.</p><p class="- topic/p ">What happens to a stale article depends on its publish status in
+        Salesforce Knowledge:</p><dl class="- topic/dl "><dlentry class="- topic/dlentry "><dt class="- topic/dt ">Published (Online) articles</dt><dd class="- topic/dd ">The service moves the article to <uicontrol class="+ topic/ph ui-d/uicontrol ">Archived</uicontrol> status using
+            the Salesforce Knowledge archive action. Archived articles are no longer
+            visible to end users but remain in Salesforce so a Knowledge administrator
+            can review, re-purpose, or permanently delete them.</dd></dlentry><dlentry class="- topic/dlentry "><dt class="- topic/dt ">Draft articles</dt><dd class="- topic/dd ">The service attempts to delete the draft. If the deletion fails due
+            to insufficient permissions, the draft is left in place and a warning is
+            recorded in the sync run history. A Salesforce administrator can then
+            delete the orphaned draft manually.</dd></dlentry></dl><note type="important" class="- topic/note ">Stale article detection only runs during a
+        <b class="+ topic/ph hi-d/b ">Full Resync</b>. Incremental syncs use a change cursor from the
+        Heretto Deploy API and rely on the API to report removed topics
+        directly.</note><note class="- topic/note ">Before removed content is detected, the deployment must be
+        published in Heretto CCMS so the syndication service can read the
+        updated structure.</note></conbody></concept>
