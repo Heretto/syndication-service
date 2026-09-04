@@ -15,6 +15,6 @@ export class ShellComponent {
   navItems: NavItem[] = [
     { label: 'Dashboard', route: '/dashboard', icon: 'dashboard' },
     { label: 'Syncs', route: '/syncs', icon: 'sync' },
-    { label: 'Run History', route: '/runs', icon: 'history' },
+    { label: 'Sync History', route: '/runs', icon: 'history' },
   ];
 }

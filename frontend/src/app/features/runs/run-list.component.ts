@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { SyncService, SyncConfig, SyncRun } from '../../core/services/sync.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
+import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 
 interface RunWithSyncName extends SyncRun {
   syncName: string;
@@ -20,7 +21,7 @@ interface RunWithSyncName extends SyncRun {
   imports: [
     CommonModule, FormsModule, RouterModule, MatButtonModule, MatIconModule,
     MatProgressSpinnerModule, MatSelectModule, MatFormFieldModule,
-    StatusBadgeComponent,
+    StatusBadgeComponent, LocalDatePipe,
   ],
   template: `
     <!-- Page banner -->
@@ -30,10 +31,10 @@ interface RunWithSyncName extends SyncRun {
           <nav class="breadcrumb">
             <a routerLink="/dashboard" class="bc-link">Home</a>
             <mat-icon class="bc-sep">chevron_right</mat-icon>
-            <span class="bc-current">Run History</span>
+            <span class="bc-current">Sync History</span>
           </nav>
-          <h1 class="banner-title">Run History</h1>
-          <p class="banner-subtitle">Complete history of syndication sync runs across all syncs.</p>
+          <h1 class="banner-title">Sync History</h1>
+          <p class="banner-subtitle">Complete history of syndication syncs across all sync configurations.</p>
         </div>
       </div>
     </div>
@@ -66,7 +67,7 @@ interface RunWithSyncName extends SyncRun {
         </button>
       </div>
       <div class="filter-bar-right">
-        <span class="results-count">{{ filteredRuns.length }} run{{ filteredRuns.length !== 1 ? 's' : '' }}</span>
+        <span class="results-count">{{ filteredRuns.length }} sync{{ filteredRuns.length !== 1 ? 's' : '' }}</span>
       </div>
     </div>
 
@@ -76,8 +77,8 @@ interface RunWithSyncName extends SyncRun {
 
     <div *ngIf="!loading && filteredRuns.length === 0" class="empty-state">
       <div class="empty-icon-wrap"><mat-icon>history</mat-icon></div>
-      <h2>No runs found</h2>
-      <p>{{ allRuns.length === 0 ? 'No syncs have been run yet.' : 'No runs match the current filter.' }}</p>
+      <h2>No syncs found</h2>
+      <p>{{ allRuns.length === 0 ? 'No syncs have run yet.' : 'No syncs match the current filter.' }}</p>
     </div>
 
     <!-- Runs table -->
@@ -103,8 +104,8 @@ interface RunWithSyncName extends SyncRun {
                 {{ r.syncName }}
               </a>
             </td>
-            <td class="time-cell">{{ r.started_at | date:'MMM d, h:mm a' }}</td>
-            <td class="time-cell">{{ r.completed_at ? (r.completed_at | date:'h:mm a') : '—' }}</td>
+            <td class="time-cell">{{ r.started_at | localDate:'MMM d, h:mm a' }}</td>
+            <td class="time-cell">{{ r.completed_at ? (r.completed_at | localDate:'h:mm a') : '—' }}</td>
             <td class="num-cell">{{ r.changed_count ?? '—' }}</td>
             <td class="num-cell">{{ r.removed_count ?? '—' }}</td>
             <td class="num-cell">{{ r.links_fixed ?? '—' }}</td>
