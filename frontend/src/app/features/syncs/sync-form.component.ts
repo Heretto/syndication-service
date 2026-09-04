@@ -643,7 +643,10 @@ export class SyncFormComponent implements OnInit {
   private _loadSourceFields(): void {
     this.api.get<{ key: string; label: string }[]>('/fields/source')
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: fields => this.sourceFields = fields, error: () => {} });
+      .subscribe({
+        next: fields => this.sourceFields = fields,
+        error: () => this.notifications.error('Failed to load source fields.'),
+      });
   }
 
   private _loadTargetFields(credentialId: string | null): void {
@@ -820,7 +823,10 @@ export class SyncFormComponent implements OnInit {
             this.notifications.success('Sync updated successfully');
             this.router.navigate(['/syncs', sync.id]);
           },
-          error: () => { this.saving = false; },
+          error: () => {
+            this.saving = false;
+            this.notifications.error('Failed to update sync. Please try again.');
+          },
         });
     } else {
       const input: CreateSyncInput = {
@@ -840,7 +846,10 @@ export class SyncFormComponent implements OnInit {
             this.notifications.success('Sync created successfully');
             this.router.navigate(['/syncs', sync.id]);
           },
-          error: () => { this.saving = false; },
+          error: () => {
+            this.saving = false;
+            this.notifications.error('Failed to create sync. Please try again.');
+          },
         });
     }
   }
