@@ -16,6 +16,8 @@ export interface SyncConfig {
   credential_id: string | null;
   mapping: Record<string, unknown>;
   created_at: string | null;
+  last_run_status: string | null;
+  last_run_error: string | null;
 }
 
 export interface SyncRun {

@@ -28,6 +28,11 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
       <mat-spinner diameter="36"></mat-spinner>
     </div>
 
+    <div *ngIf="!loading && loadError" class="load-error">
+      <mat-icon>error_outline</mat-icon>
+      <p>Failed to load sync details. Please refresh the page.</p>
+    </div>
+
     <ng-container *ngIf="!loading && sync">
       <!-- Page banner -->
       <div class="page-banner">
@@ -62,6 +67,15 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
               <mat-icon>delete</mat-icon> Delete
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- Auto-deactivation callout -->
+      <div *ngIf="showDeactivationCallout" class="deactivation-callout">
+        <mat-icon>warning_amber</mat-icon>
+        <div class="callout-body">
+          <strong>Sync automatically disabled after repeated failures</strong>
+          <p>This sync was disabled after too many consecutive failed runs. Review the errors in Recent Runs below, fix the underlying issue, then delete and recreate the sync to restart it.</p>
         </div>
       </div>
 
@@ -230,6 +244,14 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
     .run-msg-warning { color: #7c4000; }
     .run-msg-warning mat-icon { color: #e65100; }
 
+    .load-error { display: flex; align-items: center; gap: 10px; padding: 20px 24px; color: #b22a09; font-size: 13px; }
+    .load-error mat-icon { color: #de350b; }
+
+    .deactivation-callout { display: flex; align-items: flex-start; gap: 12px; background: #fff8f6; border: 1px solid #f5c6bc; border-radius: 4px; padding: 14px 18px; margin: 16px 0 0; }
+    .deactivation-callout > mat-icon { color: #e65100; flex-shrink: 0; margin-top: 1px; }
+    .callout-body strong { font-size: 13px; font-weight: 600; color: #7c2d0e; display: block; margin-bottom: 4px; }
+    .callout-body p { font-size: 12.5px; color: #7c2d0e; margin: 0; line-height: 1.5; }
+
     .not-found { display: flex; flex-direction: column; align-items: center; padding: 80px 24px; text-align: center; color: #5e6e82; }
     .not-found mat-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
     .not-found h2 { font-size: 18px; color: #3d4460; margin: 0 0 20px; }
@@ -243,7 +265,12 @@ export class SyncDetailComponent implements OnInit {
   sync: SyncConfig | null = null;
   runs: SyncRun[] = [];
   loading = true;
+  loadError = false;
   runsLoading = false;
+
+  get showDeactivationCallout(): boolean {
+    return !this.sync?.is_active && this.runs.length > 0 && this.runs[0].status === 'failed';
+  }
 
   constructor(
     private syncService: SyncService,
@@ -266,7 +293,7 @@ export class SyncDetailComponent implements OnInit {
           this.loading = false;
           this.loadRuns(id);
         },
-        error: () => { this.loading = false; },
+        error: () => { this.loading = false; this.loadError = true; },
       });
   }
 
@@ -290,6 +317,7 @@ export class SyncDetailComponent implements OnInit {
           this.notifications.success('Sync triggered');
           this._startRunPolling(syncId);
         },
+        error: () => this.notifications.error('Failed to trigger sync. Please try again.'),
       });
   }
 
@@ -314,6 +342,7 @@ export class SyncDetailComponent implements OnInit {
             this.notifications.success('Full resync triggered');
             this._startRunPolling(syncId);
           },
+          error: () => this.notifications.error('Failed to trigger full resync. Please try again.'),
         });
     });
   }

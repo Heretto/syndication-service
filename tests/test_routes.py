@@ -94,6 +94,7 @@ def _make_run(**overrides) -> MagicMock:
 def mock_store():
     store = MagicMock()
     store.list_active_syncs = MagicMock(return_value=[_make_sync_cfg()])
+    store.get_last_run_statuses = MagicMock(return_value={})
     store.get_sync = MagicMock(return_value=_make_sync_cfg())
     store.create_sync = MagicMock(return_value=_make_sync_cfg())
     store.update_sync = MagicMock(return_value=_make_sync_cfg())

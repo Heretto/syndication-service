@@ -371,6 +371,32 @@ class SyncStateStore:
 
         return self._with_session(_fail_orphans)
 
+    def get_last_run_statuses(self, sync_ids: list[str]) -> dict[str, SyncRun]:
+        """Return the most recent SyncRun for each id in *sync_ids* (single query)."""
+        if not sync_ids:
+            return {}
+        from sqlalchemy import func
+        db = self._session()
+        try:
+            subq = (
+                db.query(SyncRun.sync_id, func.max(SyncRun.started_at).label("latest"))
+                .filter(SyncRun.sync_id.in_(sync_ids))
+                .group_by(SyncRun.sync_id)
+                .subquery()
+            )
+            runs = (
+                db.query(SyncRun)
+                .join(subq, (SyncRun.sync_id == subq.c.sync_id) & (SyncRun.started_at == subq.c.latest))
+                .all()
+            )
+            result: dict[str, SyncRun] = {}
+            for run in runs:
+                db.expunge(run)
+                result[run.sync_id] = run
+            return result
+        finally:
+            db.close()
+
     def list_runs(self, sync_id: str, limit: int = 20) -> list[SyncRun]:
         db = self._session()
         try:

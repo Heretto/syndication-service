@@ -67,9 +67,11 @@ class SyncConfigResponse(BaseModel):
     credential_id: str | None
     mapping: dict[str, Any]
     created_at: datetime | None
+    last_run_status: str | None = None
+    last_run_error: str | None = None
 
     @classmethod
-    def from_model(cls, cfg: Any) -> "SyncConfigResponse":
+    def from_model(cls, cfg: Any, last_run: Any = None) -> "SyncConfigResponse":
         return cls(
             id=cfg.id,
             name=cfg.name,
@@ -85,6 +87,8 @@ class SyncConfigResponse(BaseModel):
             credential_id=getattr(cfg, "credential_id", None),
             mapping=cfg.mapping if isinstance(cfg.mapping, dict) else {},
             created_at=getattr(cfg, "created_at", None),
+            last_run_status=last_run.status if last_run else None,
+            last_run_error=last_run.error_message if last_run else None,
         )
 
 
@@ -227,7 +231,8 @@ def list_syncs(request: Request, context: OrgCtx):
     """List all active sync configurations for the authenticated organisation."""
     org_id = str(context.organization_id)
     syncs = _store(request).list_active_syncs(org_id=org_id)
-    return [SyncConfigResponse.from_model(s) for s in syncs]
+    last_runs = _store(request).get_last_run_statuses([s.id for s in syncs])
+    return [SyncConfigResponse.from_model(s, last_runs.get(s.id)) for s in syncs]
 
 
 @router.post("", response_model=SyncConfigResponse, status_code=status.HTTP_201_CREATED)

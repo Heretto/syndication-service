@@ -161,7 +161,10 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
 
           <div class="card-footer">
             <div class="card-meta">
-              <span *ngIf="s.created_at" class="meta-text">
+              <span *ngIf="s.last_run_status === 'failed'" class="meta-run-failed">
+                <mat-icon>error_outline</mat-icon> Last run failed
+              </span>
+              <span *ngIf="s.created_at && s.last_run_status !== 'failed'" class="meta-text">
                 Created {{ s.created_at | date:'MMM d, yyyy' }}
               </span>
               <span *ngIf="s.high_water_mark" class="meta-text">
@@ -276,6 +279,8 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
     .card-footer { display: flex; justify-content: space-between; align-items: flex-end; border-top: 1px solid #f0f2f7; padding-top: 8px; margin-top: 2px; }
     .card-meta { display: flex; flex-direction: column; gap: 2px; }
     .meta-text { font-size: 11px; color: #5e6e82; }
+    .meta-run-failed { font-size: 11px; color: #b22a09; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+    .meta-run-failed mat-icon { font-size: 12px; width: 12px; height: 12px; }
     .card-actions { display: flex; }
     .action-btn { color: #5e6e82 !important; }
     .action-btn:hover { color: #011627 !important; }
@@ -325,7 +330,7 @@ export class SyncListComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: s => { this.syncs = s; this.loading = false; },
-        error: () => { this.loading = false; },
+        error: () => { this.loading = false; this.notifications.error('Failed to load syncs.'); },
       });
   }
 
@@ -336,7 +341,10 @@ export class SyncListComponent implements OnInit {
   triggerNow(sync: SyncConfig) {
     this.syncService.trigger(sync.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: () => this.notifications.success('Sync triggered successfully') });
+      .subscribe({
+        next: () => this.notifications.success('Sync triggered successfully'),
+        error: () => this.notifications.error('Failed to trigger sync. Please try again.'),
+      });
   }
 
   deleteSync(sync: SyncConfig) {
