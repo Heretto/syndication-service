@@ -295,7 +295,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             Both values must be entered exactly as they appear in each system — they are case-sensitive.
           </p>
           <ul class="mapping-hint-list">
-            <li><strong>Deploy Taxonomy Group</strong> — the group name as defined in your Heretto publication's metadata taxonomy (e.g. <code>Audiences</code>, <code>Products</code>).</li>
+            <li><strong>Deploy Taxonomy Group</strong> — the group name as defined in your Heretto publication's taxonomy metadata (e.g. <code>Audiences</code>, <code>Products</code>).</li>
             <li><strong>Salesforce Category Group</strong> — the Data Category Group <em>API name</em> from Salesforce Setup → Data Category Groups (not the label).</li>
           </ul>
 
@@ -312,7 +312,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
               <mat-form-field appearance="outline" class="mapping-field">
                 <mat-label>Deploy Taxonomy Group</mat-label>
                 <input matInput formControlName="deploy_group" placeholder="e.g. Audiences">
-                <mat-hint>Exact group name from your Heretto publication metadata taxonomy</mat-hint>
+                <mat-hint>Exact group name from your Heretto publication taxonomy metadata</mat-hint>
               </mat-form-field>
               <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
               <mat-form-field appearance="outline" class="mapping-field">
