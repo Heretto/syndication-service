@@ -292,14 +292,17 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
           <h2 class="section-title">Data Category Mapping</h2>
           <p class="mapping-hint">
             Map Heretto Deploy taxonomy groups to Salesforce Data Category groups.
-            Values within each group pass through unchanged — the Deploy taxonomy value
-            must match the SF Data Category API name exactly.
+            Both values must be entered exactly as they appear in each system — they are case-sensitive.
           </p>
+          <ul class="mapping-hint-list">
+            <li><strong>Deploy Taxonomy Group</strong> — the group name as defined in your Heretto publication's metadata taxonomy (e.g. <code>Audiences</code>, <code>Products</code>).</li>
+            <li><strong>Salesforce Category Group</strong> — the Data Category Group <em>API name</em> from Salesforce Setup → Data Category Groups (not the label).</li>
+          </ul>
 
           <div class="mapping-header" *ngIf="categoryMapArray.length > 0">
             <span class="mapping-col-label">Deploy Taxonomy Group</span>
             <span class="mapping-arrow-spacer"></span>
-            <span class="mapping-col-label">Salesforce Category Group</span>
+            <span class="mapping-col-label">Salesforce Category Group API Name</span>
             <span class="mapping-remove-spacer"></span>
           </div>
 
@@ -309,10 +312,11 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
               <mat-form-field appearance="outline" class="mapping-field">
                 <mat-label>Deploy Taxonomy Group</mat-label>
                 <input matInput formControlName="deploy_group" placeholder="e.g. Audiences">
+                <mat-hint>Exact group name from your Heretto publication metadata taxonomy</mat-hint>
               </mat-form-field>
               <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
               <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>Salesforce Category Group</mat-label>
+                <mat-label>Salesforce Category Group API Name</mat-label>
                 <mat-select *ngIf="sfCategoryGroups.length > 0"
                             formControlName="sf_group"
                             placeholder="Select group">
@@ -323,6 +327,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
                 <input *ngIf="sfCategoryGroups.length === 0"
                        matInput formControlName="sf_group"
                        placeholder="e.g. Audiences">
+                <mat-hint *ngIf="!sfCategoryGroupsLoading">API name from Salesforce Setup → Data Category Groups</mat-hint>
                 <mat-hint *ngIf="sfCategoryGroupsLoading">Loading Salesforce category groups…</mat-hint>
               </mat-form-field>
               <button mat-icon-button type="button" (click)="removeCategoryRow(i)"
@@ -408,7 +413,9 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
     }
 
     /* Field mapping */
-    .mapping-hint { font-size: 12.5px; color: #5e6e82; margin: 0 0 14px; line-height: 1.5; }
+    .mapping-hint { font-size: 12.5px; color: #5e6e82; margin: 0 0 8px; line-height: 1.5; }
+    .mapping-hint-list { font-size: 12.5px; color: #5e6e82; margin: 0 0 14px; padding-left: 18px; line-height: 1.7; }
+    .mapping-hint-list code { font-family: 'Roboto Mono', monospace; font-size: 11.5px; background: #f0f2f7; padding: 1px 4px; border-radius: 3px; }
 
     .deploy-fields-ref {
       background: #f4f6fa;
