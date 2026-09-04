@@ -403,24 +403,26 @@ class SalesforceConnector(ITargetConnector):
                 )
 
     async def archive_article(self, target_article_id: str) -> None:
-        """Remove a Knowledge article, handling draft and published states.
+        """Archive or remove a Knowledge article based on its current publish status.
 
-        Draft/Archived KAVs can be DELETEd directly.  Online (published)
-        articles must be moved to Archived first via the standard action
-        (which requires the KA ID, not the KAV ID), then deleted.
+        Online (published) articles are moved to Archived status via the
+        standard invocable action — they are NOT deleted.  This is intentional:
+        the Salesforce Knowledge admin retains the article and can dispose of it
+        on their own schedule.
+
+        Draft KAVs are deleted directly.
+
         Articles already absent from Salesforce are silently ignored.
         """
         base = self._base_url()
 
-        # Fetch current publish status and parent KA ID in one query.
         soql = (
-            f"SELECT Id, PublishStatus, KnowledgeArticleId FROM {self._kav_type} "
+            f"SELECT Id, PublishStatus FROM {self._kav_type} "
             f"WHERE Id = '{_soql_escape(target_article_id)}' LIMIT 1"
         )
         q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
         records = q_resp.json().get("records", [])
         if not records:
-            # Already removed from Salesforce — nothing to do.
             return
 
         rec = records[0]
@@ -428,23 +430,27 @@ class SalesforceConnector(ITargetConnector):
         kav_id = rec["Id"]
 
         if publish_status == "Online":
-            # Published articles cannot be DELETEd directly; archive first.
-            ka_id = rec["KnowledgeArticleId"]
+            # Use the standard invocable action — mirrors publishKnowledgeArticles.
+            # Takes the KAV ID (rec["Id"]), not the KA ID, wrapped in the inputs envelope.
             archive_url = (
                 f"{self._instance_url}/services/data/v{self._api_version}"
                 f"/actions/standard/archiveKnowledgeArticles"
             )
-            await self._request("POST", archive_url, json={"articleIds": [ka_id]})
-            # Re-fetch the now-Archived KAV id (archiving may create a new version row).
-            soql2 = (
-                f"SELECT Id FROM {self._kav_type} "
-                f"WHERE KnowledgeArticleId = '{_soql_escape(ka_id)}' AND PublishStatus = 'Archived' LIMIT 1"
+            resp = await self._request(
+                "POST",
+                archive_url,
+                json={"inputs": [{"articleVersionIdList": [kav_id]}]},
             )
-            q2 = await self._request("GET", f"{base}/query", params={"q": soql2})
-            archived = q2.json().get("records", [])
-            if archived:
-                kav_id = archived[0]["Id"]
+            result = resp.json()
+            if result and not result[0].get("isSuccess"):
+                raise httpx.HTTPStatusError(
+                    f"archiveKnowledgeArticles failed: {result[0].get('outputValues')}",
+                    request=resp.request,
+                    response=resp,
+                )
+            return  # Article is now Archived in Salesforce — do not delete.
 
+        # Draft (or already Archived): delete the KAV directly.
         await self._request("DELETE", f"{base}/sobjects/{self._kav_type}/{kav_id}")
 
     async def deferred_link_fixup(

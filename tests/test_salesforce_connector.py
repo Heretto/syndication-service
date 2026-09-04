@@ -471,32 +471,47 @@ class TestArchiveArticle:
             await conn.archive_article("ka01GONE")
         # No DELETE should have been attempted — no error means success
 
-    async def test_archive_online_article_archives_then_deletes(self):
+    async def test_archive_online_article_calls_action_and_does_not_delete(self):
+        """Online articles are moved to Archived via the standard action — NOT deleted."""
         conn = _conn()
         art_id = "ka01PUB"
-        ka_id = "ka001KA"
-        archived_kav_id = "ka01ARC"
-        with respx.mock() as mock:
-            # First query: status check returns Online
-            mock.get(f"{BASE}/query").mock(side_effect=[
-                httpx.Response(200, json={"records": [
-                    {"Id": art_id, "PublishStatus": "Online", "KnowledgeArticleId": ka_id}
-                ]}),
-                httpx.Response(200, json={"records": [{"Id": archived_kav_id}]}),
-            ])
+        # assert_all_called=False because DELETE must NOT be called (we assert it below)
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(f"{BASE}/query").mock(return_value=httpx.Response(200, json={
+                "records": [{"Id": art_id, "PublishStatus": "Online", "KnowledgeArticleId": "ka001KA"}]
+            }))
             archive_route = mock.post(
                 "https://myorg.my.salesforce.com/services/data/v65.0/actions/standard/archiveKnowledgeArticles"
             ).mock(return_value=httpx.Response(200, json=[{"isSuccess": True}]))
-            delete_route = mock.delete(
-                f"{BASE}/sobjects/{KAV_TYPE}/{archived_kav_id}"
-            ).mock(return_value=httpx.Response(204))
+            delete_route = mock.delete(f"{BASE}/sobjects/{KAV_TYPE}/{art_id}").mock(
+                return_value=httpx.Response(204)
+            )
 
             await conn.archive_article(art_id)
 
         assert archive_route.called
         import json as _json
-        assert _json.loads(archive_route.calls[0].request.content) == {"articleIds": [ka_id]}
-        assert delete_route.called
+        # Must use the inputs envelope with articleVersionIdList (KAV ID, not KA ID)
+        assert _json.loads(archive_route.calls[0].request.content) == {
+            "inputs": [{"articleVersionIdList": [art_id]}]
+        }
+        assert not delete_route.called  # must NOT delete — leave for SF admin
+
+    async def test_archive_online_article_raises_on_action_failure(self):
+        """A failed archiveKnowledgeArticles action raises HTTPStatusError."""
+        conn = _conn()
+        art_id = "ka01PUB"
+        with respx.mock() as mock:
+            mock.get(f"{BASE}/query").mock(return_value=httpx.Response(200, json={
+                "records": [{"Id": art_id, "PublishStatus": "Online", "KnowledgeArticleId": "ka001KA"}]
+            }))
+            mock.post(
+                "https://myorg.my.salesforce.com/services/data/v65.0/actions/standard/archiveKnowledgeArticles"
+            ).mock(return_value=httpx.Response(200, json=[{"isSuccess": False, "outputValues": {"errors": ["INSUFFICIENT_ACCESS"]}}]))
+
+            import pytest as _pytest
+            with _pytest.raises(httpx.HTTPStatusError, match="archiveKnowledgeArticles failed"):
+                await conn.archive_article(art_id)
 
 
 # ── upload_binary ─────────────────────────────────────────────────────────────
