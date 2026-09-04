@@ -49,6 +49,9 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
             </div>
           </div>
           <div class="banner-right">
+            <button mat-stroked-button class="action-banner-btn" [routerLink]="['/syncs', sync.id, 'edit']">
+              <mat-icon>edit</mat-icon> Edit
+            </button>
             <button mat-stroked-button class="action-banner-btn" (click)="triggerNow()" matTooltip="Sync files changed since the last run">
               <mat-icon>play_arrow</mat-icon> Sync Changes
             </button>
