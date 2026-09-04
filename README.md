@@ -32,8 +32,8 @@ Each sync run executes the following stages:
 | 4 | Upload binaries | Download image assets from Deploy and upload to the target |
 | 5 | Upsert articles | Create or update articles via the target API |
 | 6 | Sync categories | Apply taxonomy → data category mappings (Salesforce only) |
-| 7 | Publish | Make articles visible to end users |
-| 8 | Archive removed | Unpublish articles that were deleted from Deploy |
+| 7 | Publish | Make articles visible to end users (skipped in draft-only mode) |
+| 8 | Archive removed | Detect and archive/remove stale articles (force full only — see below) |
 | 9 | Deferred link fixup | Rewrite cross-article links after all articles are loaded |
 
 ### Incremental Sync
@@ -43,6 +43,12 @@ Uses the Deploy `/changed_content` endpoint with a **high-water-mark cursor**. O
 ### Force Full Resync
 
 Walks the complete `/structure` tree and fetches every topic regardless of modification date. Useful when articles exist in Deploy but were never emitted by the changeset endpoint (e.g. content published before sync tracking began). The high-water-mark cursor is **not** advanced after a forced resync.
+
+A force full resync also performs **stale article detection**: after processing, it compares the set of articles just synced against every article previously mapped for this sync. Any mapped article whose source topic is no longer present is treated as removed:
+
+- **Online (published) articles** — archived in Salesforce Knowledge via the `archiveKnowledgeArticles` standard action. The article is moved to Archived status and remains in Salesforce for a Knowledge admin to review or delete.
+- **Draft articles** — deleted directly via the REST API.
+- **Failures** — if archiving or deletion fails, a warning is recorded in the run record. The sync still completes with `success` status; warnings indicate items requiring manual follow-up in Salesforce.
 
 > The pipeline is stateless. The executor layer is responsible for persisting the cursor, article mappings, and run records between runs.
 
@@ -75,7 +81,7 @@ Reads from the **Heretto Deploy API v4** and maps each content item into an `IRP
 
 Publishes articles to Salesforce Knowledge using the REST API. Supports the full draft → publish workflow with idempotent upserts via a custom external ID field.
 
-- OAuth 2.0 client credentials flow (auto-refresh on 401)
+- OAuth 2.0 client credentials flow (auto-refresh on 401) or static access token
 - Idempotent upserts via `external_id_field` (default: `Heretto_UUID__c`)
 - HTML sanitized to the Knowledge-approved tag whitelist
 - Binary images uploaded as Salesforce ContentVersions and rewritten in HTML
@@ -83,7 +89,24 @@ Publishes articles to Salesforce Knowledge using the REST API. Supports the full
 - Data Category sync: maps Deploy taxonomy groups to SF `Knowledge__DataCategorySelection` child records
 - Configurable `knowledge_type` (default: `Knowledge__kav`)
 
-**Credential fields:** `instance_url`, `client_id`, `client_secret`, `api_version`, `knowledge_type`, `external_id_field`
+**Authentication modes:**
+
+| Mode | Fields required | Notes |
+|------|-----------------|-------|
+| OAuth 2.0 Client Credentials | `client_id`, `client_secret` | Recommended — token acquired and refreshed automatically. Requires a Salesforce External Client App with Client Credentials Flow enabled and a Run As user assigned. Leave `access_token` empty. |
+| Static access token | `access_token` | Simpler but requires manual credential update when the token expires. Leave `client_id` and `client_secret` empty. |
+
+**All credential fields:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `instance_url` | Always | Salesforce org base URL, e.g. `https://myorg.my.salesforce.com` |
+| `api_version` | Always | REST API version, e.g. `65.0` |
+| `knowledge_type` | Always | KAV object API name, e.g. `Knowledge__kav` |
+| `external_id_field` | Always | Custom text field on the KAV object that stores the Heretto UUID, e.g. `Heretto_UUID__c` |
+| `client_id` | OAuth only | Consumer Key from the External Client App |
+| `client_secret` | OAuth only | Consumer Secret from the External Client App |
+| `access_token` | Static only | Valid Salesforce access token |
 
 ---
 
@@ -116,6 +139,8 @@ Maps Deploy IR fields to target system fields. Keys are source field names; valu
 | `html_body` | `content` | Sanitized before upload |
 | `content_type` | `standardMetadata.text_single_Line.contentType` | |
 | `last_modified_iso` | `standardMetadata.date.lastModified` | ISO 8601 |
+| `section_path` | structure traversal | Breadcrumb path, e.g. `Getting Started > Install`. Force full only. |
+| `sort_order` | structure traversal | Numeric position within parent section. Force full only. |
 | `taxonomy` | `customMetadata.taxonomy` | Used for category sync, not field mapping |
 
 ### Data Category Mapping (Salesforce only)
@@ -133,6 +158,15 @@ Maps Deploy taxonomy group names to SF data category group API names. Stored as 
 
 SF data category groups must be configured in Salesforce Setup before this mapping takes effect. Categories are synced after upsert and before publish.
 
+### Publish Mode
+
+Controls whether articles are published to Online status after upload, or left as drafts.
+
+| Value | Behaviour |
+|-------|-----------|
+| `auto` (default) | After uploading each article, the service immediately publishes it to Online status in Salesforce Knowledge. Content is visible to end users as soon as the sync completes. |
+| `draft` | Articles are uploaded and left in Draft status. A Salesforce Knowledge admin must review and publish them manually. |
+
 ### Scheduling
 
 Each sync has a cron expression that controls automatic runs. Any standard cron expression is supported.
@@ -149,11 +183,11 @@ Each sync has a cron expression that controls automatic runs. Any standard cron 
 
 The web UI (Angular, port `4200` in development) provides:
 
-- **Dashboard** — overview of all active syncs and recent run status
-- **Create / Edit sync** — configure adapter, connector, credentials, cron schedule, field mapping, and data category mapping
+- **Dashboard** — overview of all active syncs and recent sync activity
+- **Create / Edit sync** — configure adapter, connector, credentials, cron schedule, publish mode, field mapping, and data category mapping
 - **Sync Changes** — trigger an incremental run immediately
-- **Full Resync** — trigger a structure-walk run that fetches every topic, bypassing the change cursor
-- **Run history** — per-run status, timestamps in the viewer's local timezone, article counts, and error messages
+- **Full Resync** — trigger a structure-walk run that fetches every topic, bypassing the change cursor, and archives stale articles
+- **Sync History** — per-run status, timestamps in the viewer's local timezone, article counts, warning messages, and error messages
 - **Delete sync** — removes the sync and unregisters its schedule
 
 The UI includes two administration pages provided by the hop-core platform layer:
@@ -174,10 +208,13 @@ All routes are mounted under `/api/v1` and require a valid JWT. Routes are org-s
 | `GET` | `/syncs/{id}` | Get a single sync by ID |
 | `PUT` | `/syncs/{id}` | Update name, cron, deployment, credential, or mapping |
 | `DELETE` | `/syncs/{id}` | Delete sync and remove its schedule |
-| `POST` | `/syncs/{id}/trigger` | Trigger an incremental run |
-| `POST` | `/syncs/{id}/trigger?force_full=true` | Trigger a force full resync |
-| `GET` | `/syncs/{id}/runs` | List recent runs (default last 20) |
+| `POST` | `/syncs/{id}/trigger` | Trigger an incremental run (rate-limited: 10/min per IP) |
+| `POST` | `/syncs/{id}/trigger?force_full=true` | Trigger a force full resync (same limit) |
+| `GET` | `/syncs/{id}/runs` | List recent runs (default last 20, max 500) |
 | `GET` | `/syncs/{id}/records` | List synced article records; filter by `record_status` |
+| `GET` | `/fields/source` | List all mappable Deploy/IR source fields |
+| `GET` | `/fields/target?credential_id=&connector_id=` | List writable fields from the target system (live, requires credential) |
+| `GET` | `/fields/categories/target?credential_id=&connector_id=` | List Salesforce Data Category Groups (Salesforce only) |
 
 ---
 
