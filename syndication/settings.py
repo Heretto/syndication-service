@@ -6,6 +6,7 @@ All values are read from environment variables (or .env file).
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Optional
 
 from hop_core.config import HopCoreSettings
 
@@ -13,6 +14,12 @@ from hop_core.config import HopCoreSettings
 class AppSettings(HopCoreSettings):
     # hop-core makes redis_url required; override to make it optional
     redis_url: str = ""
+
+    # ── First-run admin seed ───────────────────────────────────────────────────
+    # If set and no admin account exists yet, one is created automatically at
+    # startup. Safe to leave in place — it is a no-op after the first run.
+    admin_email: Optional[str] = None
+    admin_password: Optional[str] = None
 
     # ── Sync executor ─────────────────────────────────────────────────────────
     sync_max_consecutive_failures: int = 5

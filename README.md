@@ -245,7 +245,15 @@ alembic upgrade head
 uvicorn syndication.main:app --reload --port 8000
 ```
 
-### 5 — Run the frontend (separate terminal)
+### 5 — Create the first admin account
+
+```bash
+python scripts/seed.py
+```
+
+You will be prompted for an email address and password. The password must be at least 12 characters and include an uppercase letter, a digit, and a special character. The script is idempotent — it does nothing if an admin account already exists.
+
+### 6 — Run the frontend (separate terminal)
 
 ```bash
 cd syndication-service/frontend
@@ -253,7 +261,7 @@ npm install
 npm start          # http://localhost:4200, proxies /api → :8000
 ```
 
-### 6 — Run the tests
+### 7 — Run the tests
 
 ```bash
 pytest tests/
@@ -263,8 +271,61 @@ pytest tests/
 
 Requires the same sibling directory layout above. Run from within `syndication-service/`:
 
+**Option A — auto-create admin at startup (recommended for first install)**
+
+Add `ADMIN_EMAIL` and `ADMIN_PASSWORD` to your `.env` before starting. On first boot the backend creates the admin account automatically and logs `Auto-seed: created admin account`.
+
+```bash
+# In .env (or export before running docker compose):
+ADMIN_EMAIL=you@yourcompany.com
+ADMIN_PASSWORD=YourStr0ng!Password
+```
+
+```bash
+bash scripts/docker-up.sh
+```
+
+`docker-up.sh` also auto-generates any missing secret keys (`APP_SECRET_KEY`, `JWT_SECRET_KEY`, `ENCRYPTION_KEY`) and warns if `ADMIN_EMAIL` is not set.
+
+**Option B — create admin interactively after startup**
+
 ```bash
 docker compose up --build
+docker compose exec backend python scripts/seed.py
 ```
 
 > Credentials are stored encrypted using hop-core's Fernet layer. The `ENCRYPTION_KEY` must be a valid Fernet key (32 url-safe base64-encoded bytes) — any other value causes an immediate startup crash.
+
+---
+
+## Troubleshooting
+
+**App is running but I can't log in — no account exists**
+
+Run the seed script to create the first admin account:
+
+```bash
+# Local dev
+python scripts/seed.py
+
+# Docker
+docker compose exec backend python scripts/seed.py
+```
+
+Alternatively, set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` and restart — the account will be created automatically on next startup.
+
+---
+
+**Registration fails with "default organization not found"**
+
+This means `SINGLE_ORG_MODE=true` but the organization row is missing. Restart the backend — it creates the default organization automatically on startup.
+
+---
+
+**`ENCRYPTION_KEY` startup crash**
+
+The key must be a valid Fernet key (exactly 32 url-safe base64-encoded bytes). Generate one with:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```

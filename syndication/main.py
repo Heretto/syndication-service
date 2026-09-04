@@ -22,9 +22,80 @@ from syndication.services.scheduler import SyncSchedulerService
 from syndication.routes.syncs import router as syncs_router
 from syndication.routes.fields import router as fields_router
 from syndication.factory import build_adapter, build_connector
-from hop_core.models.organization import Organization
+from hop_core.models.organization import Organization, OrganizationMember
+from hop_core.models.user import User
+from hop_core.models.enums import OrganizationRole
+from hop_core.core.security import get_password_hash
 
 log = logging.getLogger(__name__)
+
+
+# ── First-run seed ────────────────────────────────────────────────────────────
+
+def _seed(session_factory):
+    """Seed the default org and (optionally) the first admin account.
+
+    Idempotent — skipped entirely if org and superuser already exist.
+    Admin creation only runs when ADMIN_EMAIL + ADMIN_PASSWORD are set.
+    Any failure is logged and swallowed so startup is never blocked.
+    """
+    settings = get_settings()
+    db = session_factory()
+    try:
+        # ── Org ───────────────────────────────────────────────────────────────
+        org = None
+        if settings.single_org_mode and settings.single_org_slug:
+            org = db.query(Organization).filter_by(slug=settings.single_org_slug).first()
+            if not org:
+                import uuid as _uuid
+                org = Organization(
+                    id=_uuid.uuid4(),
+                    name=settings.single_org_slug.capitalize(),
+                    slug=settings.single_org_slug,
+                )
+                db.add(org)
+                db.commit()
+                db.refresh(org)
+                log.info("Created default organization '%s'.", settings.single_org_slug)
+
+        # ── Admin user ────────────────────────────────────────────────────────
+        if not settings.admin_email or not settings.admin_password:
+            log.info(
+                "ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping auto-seed. "
+                "Run 'python scripts/seed.py' to create the first admin account."
+            )
+            return
+
+        if db.query(User).filter(User.is_superuser.is_(True)).first():
+            return  # already seeded
+
+        if org is None and settings.single_org_slug:
+            org = db.query(Organization).filter_by(slug=settings.single_org_slug).first()
+
+        import uuid as _uuid
+        admin = User(
+            id=_uuid.uuid4(),
+            email=settings.admin_email,
+            password_hash=get_password_hash(settings.admin_password),
+            is_active=True,
+            is_superuser=True,
+            current_organization_id=org.id if org else None,
+        )
+        db.add(admin)
+        db.flush()
+        if org:
+            db.add(OrganizationMember(
+                user_id=admin.id,
+                organization_id=org.id,
+                role=OrganizationRole.ADMIN,
+            ))
+        db.commit()
+        log.info("Auto-seed: created admin account <%s>.", settings.admin_email)
+    except Exception:
+        log.exception("Auto-seed failed — continuing startup.")
+        db.rollback()
+    finally:
+        db.close()
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -39,15 +110,7 @@ def _build_lifespan(hop_lifespan):
             # in production; create_all is safe for dev/test).
             session_factory = get_session_factory()
 
-            # Seed the default organization in single-org mode so that the
-            # registration endpoint never 500s on a fresh install.
-            settings = get_settings()
-            if settings.single_org_mode and settings.single_org_slug:
-                with session_factory() as db:
-                    if not db.query(Organization).filter_by(slug=settings.single_org_slug).first():
-                        db.add(Organization(name=settings.single_org_slug.capitalize(), slug=settings.single_org_slug))
-                        db.commit()
-                        log.info("Created default organization '%s'.", settings.single_org_slug)
+            _seed(session_factory)
 
             store = SyncStateStore(session_factory=session_factory)
             app.state.session_factory = session_factory
