@@ -4,6 +4,74 @@ A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge o
 
 ---
 
+## Features
+
+- **Incremental and full syncs** — incremental runs use a high-water-mark cursor so only changed content is processed; full resyncs walk the entire deployment structure
+- **Removed content handling** — full resyncs detect articles whose source topic no longer exists and automatically archive (Online) or delete (Draft) them in Salesforce Knowledge
+- **Publish modes** — auto-publish articles to Online on sync, or leave them as Drafts for manual review
+- **Field mapping** — map any Deploy/IR field to any writable Salesforce Knowledge field
+- **Data category mapping** — map Heretto taxonomy groups to Salesforce Knowledge data category groups for article visibility control
+- **Scheduled and on-demand** — any standard cron expression, plus manual trigger from the UI or API
+- **Run warnings** — if an article can't be archived or deleted, the sync still succeeds and records a warning for follow-up
+- **Credential management** — Salesforce credentials stored encrypted; supports OAuth 2.0 Client Credentials Flow (auto-refresh) or static access token
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.11+, Node.js 24+
+- [hop-core](https://github.com/Heretto/hop-core) cloned as a sibling directory
+
+```
+parent-dir/
+├── hop-core/
+└── syndication-service/
+```
+
+### 1 — Install dependencies
+
+```bash
+git clone https://github.com/Heretto/hop-core.git
+pip install ./hop-core
+
+cd hop-core/ui && npm install && npm run build && cd -
+
+cd syndication-service
+pip install -e ".[dev]"
+cd frontend && npm install && cd ..
+```
+
+### 2 — Configure and seed
+
+```bash
+cp .env.example .env
+# Edit .env — set ENCRYPTION_KEY, APP_SECRET_KEY, JWT_SECRET_KEY
+# (see Running Locally below for generation commands)
+
+alembic upgrade head
+python scripts/seed.py   # creates the first admin account
+```
+
+### 3 — Start
+
+```bash
+# Terminal 1 — backend
+uvicorn syndication.main:app --reload --port 8000
+
+# Terminal 2 — frontend
+cd frontend && npm start   # http://localhost:4200
+```
+
+### 4 — Connect Salesforce and create your first sync
+
+1. Log in and go to **Credentials → New credential**. Enter your Salesforce instance URL, API version, Knowledge type, external ID field, and either OAuth client credentials or a static access token.
+2. Go to **Syncs → New Sync**. Enter the Heretto deployment ID, select the credential you just created, configure a schedule or leave it as manual, and map at least one source field (e.g. `title → Title`).
+3. Click **Full Resync** to push all current content from the deployment to Salesforce Knowledge.
+
+---
+
 ## Architecture
 
 The service is built around three layers:
