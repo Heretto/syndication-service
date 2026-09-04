@@ -6,6 +6,8 @@ non-2xx responses.
 """
 from __future__ import annotations
 
+from urllib.parse import quote, urlparse
+
 import httpx
 
 
@@ -35,7 +37,7 @@ class DeployClient:
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _dep_url(self, path: str) -> str:
-        return f"{self._base_url}/v4/deployments/{self._deployment_id}/{path.lstrip('/')}"
+        return f"{self._base_url}/v4/deployments/{quote(self._deployment_id, safe='')}/{path.lstrip('/')}"
 
     async def _get(self, url: str, params: dict | None = None) -> httpx.Response:
         async with httpx.AsyncClient(headers=self._headers) as http:
@@ -75,10 +77,13 @@ class DeployClient:
     async def fetch_binary(self, url: str) -> tuple[bytes, str]:
         """Download an arbitrary URL and return ``(content_bytes, mime_type)``.
 
-        The URL is not required to be under the Deploy API base; binary assets
-        often live on a CDN domain with short-lived JWT tokens.
+        Auth headers are only sent for on-domain requests (same host as
+        base_url) to prevent the Deploy API key from leaking to CDN domains.
         """
-        async with httpx.AsyncClient(headers=self._headers) as http:
+        base_host = urlparse(self._base_url).netloc
+        url_host = urlparse(url).netloc
+        headers = self._headers if url_host == base_host else {}
+        async with httpx.AsyncClient(headers=headers) as http:
             resp = await http.get(url)
             resp.raise_for_status()
         mime = resp.headers.get("Content-Type", "application/octet-stream").split(";")[0].strip()

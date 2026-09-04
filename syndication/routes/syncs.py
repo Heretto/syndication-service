@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime
 
 log = logging.getLogger(__name__)
@@ -15,9 +16,10 @@ from typing import Annotated, Any
 
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from hop_core.api.dependencies import CurrentUserContext, get_current_active_user_with_org
+from hop_core.core.rate_limit import limiter
 
 router = APIRouter(prefix="/syncs", tags=["syncs"])
 
@@ -28,6 +30,9 @@ OrgCtx = Annotated[CurrentUserContext, Depends(get_current_active_user_with_org)
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 _VALID_PUBLISH_MODES = frozenset({"auto", "draft"})
+_VALID_ADAPTER_IDS = frozenset({"deploy"})
+_VALID_CONNECTOR_IDS = frozenset({"salesforce", "noop"})
+_AUDIENCE_RE = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
 
 class CreateSyncRequest(BaseModel):
@@ -41,6 +46,15 @@ class CreateSyncRequest(BaseModel):
     publish_mode: str = "auto"
     deploy_audience: str | None = None
 
+    @field_validator("deploy_audience")
+    @classmethod
+    def _validate_audience(cls, v: str | None) -> str | None:
+        if v is not None and not _AUDIENCE_RE.match(v):
+            raise ValueError(
+                "deploy_audience must be alphanumeric (hyphens/underscores allowed), max 64 chars."
+            )
+        return v
+
 
 class UpdateSyncRequest(BaseModel):
     name: str | None = None
@@ -50,6 +64,15 @@ class UpdateSyncRequest(BaseModel):
     mapping: dict[str, Any] | None = None
     publish_mode: str | None = None
     deploy_audience: str | None = None
+
+    @field_validator("deploy_audience")
+    @classmethod
+    def _validate_audience(cls, v: str | None) -> str | None:
+        if v is not None and not _AUDIENCE_RE.match(v):
+            raise ValueError(
+                "deploy_audience must be alphanumeric (hyphens/underscores allowed), max 64 chars."
+            )
+        return v
 
 
 class SyncConfigResponse(BaseModel):
@@ -176,6 +199,22 @@ def _validate_publish_mode(publish_mode: str | None) -> None:
         )
 
 
+def _validate_adapter_id(adapter_id: str) -> None:
+    if adapter_id not in _VALID_ADAPTER_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid adapter_id {adapter_id!r}. Valid values: {', '.join(sorted(_VALID_ADAPTER_IDS))}.",
+        )
+
+
+def _validate_connector_id(connector_id: str) -> None:
+    if connector_id not in _VALID_CONNECTOR_IDS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid connector_id {connector_id!r}. Valid values: {', '.join(sorted(_VALID_CONNECTOR_IDS))}.",
+        )
+
+
 def _validate_mapping(connector_id: str, mapping: dict) -> None:
     """Raise 422 if *mapping* contains unknown source field keys (non-noop only)."""
     if connector_id == "noop" or not mapping:
@@ -238,6 +277,8 @@ def list_syncs(request: Request, context: OrgCtx):
 @router.post("", response_model=SyncConfigResponse, status_code=status.HTTP_201_CREATED)
 def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
     """Create a new sync configuration and register it with the scheduler."""
+    _validate_adapter_id(body.adapter_id)
+    _validate_connector_id(body.connector_id)
     _validate_cron(body.cron_expression)
     _validate_publish_mode(body.publish_mode)
     _validate_mapping(body.connector_id, body.mapping)
@@ -331,6 +372,7 @@ def list_records(
 
 
 @router.post("/{sync_id}/trigger", response_model=TriggerResponse, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("10/minute")
 async def trigger_sync(request: Request, sync_id: str, context: OrgCtx, force_full: bool = False):
     """Manually trigger an immediate sync run.
 

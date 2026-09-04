@@ -37,6 +37,23 @@ def _slugify(text: str) -> str:
     return text[:255] or "article"
 
 
+def _soql_escape(value: str) -> str:
+    """Escape a string value for safe interpolation into a SOQL WHERE clause."""
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+# Salesforce API identifiers: letter-first, letters/digits/underscores, max 80 chars.
+_SF_IDENTIFIER_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,79}$")
+
+
+def _validate_sf_identifier(name: str, label: str) -> None:
+    if not _SF_IDENTIFIER_RE.match(name):
+        raise ValueError(
+            f"Invalid Salesforce {label} {name!r}. "
+            "Must be a valid API name (letter-first, letters/digits/underscores only)."
+        )
+
+
 _VALID_SOURCE_FIELDS = frozenset({
     "title", "short_description", "html_body",
     "content_type", "last_modified_iso", "section_path", "sort_order",
@@ -66,6 +83,8 @@ class SalesforceConnector(ITargetConnector):
         knowledge_type: str = "Knowledge__kav",
         external_id_field: str = "Heretto_UUID__c",
     ) -> None:
+        _validate_sf_identifier(knowledge_type, "knowledge_type")
+        _validate_sf_identifier(external_id_field, "external_id_field")
         self._instance_url = instance_url.rstrip("/")
         self._api_version = api_version
         self._static_token = access_token
@@ -165,8 +184,7 @@ class SalesforceConnector(ITargetConnector):
         base = self._base_url()
 
         # 1. Check for an existing ContentDocument by filename to avoid duplicates
-        safe_filename = filename.replace("'", "\\'")
-        check_q = f"SELECT ContentDocumentId FROM ContentVersion WHERE Title = '{safe_filename}' LIMIT 1"
+        check_q = f"SELECT ContentDocumentId FROM ContentVersion WHERE Title = '{_soql_escape(filename)}' LIMIT 1"
         check_resp = await self._request("GET", f"{base}/query", params={"q": check_q})
         existing = check_resp.json().get("records", [])
         if existing:
@@ -185,7 +203,7 @@ class SalesforceConnector(ITargetConnector):
         version_id = resp.json()["id"]
 
         # 3. Retrieve ContentDocumentId for the version
-        query = f"SELECT ContentDocumentId FROM ContentVersion WHERE Id = '{version_id}'"
+        query = f"SELECT ContentDocumentId FROM ContentVersion WHERE Id = '{_soql_escape(version_id)}'"
         q_resp = await self._request("GET", f"{base}/query", params={"q": query})
         doc_id = q_resp.json()["records"][0]["ContentDocumentId"]
 
@@ -245,7 +263,7 @@ class SalesforceConnector(ITargetConnector):
         # 1. Query for any existing version by our tracking field
         soql = (
             f"SELECT Id, PublishStatus FROM {self._kav_type} "
-            f"WHERE {self._ext_field} = '{ir.uuid}' "
+            f"WHERE {self._ext_field} = '{_soql_escape(ir.uuid)}' "
             f"AND PublishStatus IN ('Draft', 'Online') "
             f"ORDER BY LastModifiedDate DESC LIMIT 1"
         )
@@ -367,7 +385,7 @@ class SalesforceConnector(ITargetConnector):
         base = self._base_url()
         sel_obj = "Knowledge__DataCategorySelection"
 
-        soql = f"SELECT Id FROM {sel_obj} WHERE ParentId = '{article_id}'"
+        soql = f"SELECT Id FROM {sel_obj} WHERE ParentId = '{_soql_escape(article_id)}'"
         q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
         for rec in q_resp.json().get("records", []):
             await self._request("DELETE", f"{base}/sobjects/{sel_obj}/{rec['Id']}")
@@ -397,7 +415,7 @@ class SalesforceConnector(ITargetConnector):
         # Fetch current publish status and parent KA ID in one query.
         soql = (
             f"SELECT Id, PublishStatus, KnowledgeArticleId FROM {self._kav_type} "
-            f"WHERE Id = '{target_article_id}' LIMIT 1"
+            f"WHERE Id = '{_soql_escape(target_article_id)}' LIMIT 1"
         )
         q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
         records = q_resp.json().get("records", [])
@@ -420,7 +438,7 @@ class SalesforceConnector(ITargetConnector):
             # Re-fetch the now-Archived KAV id (archiving may create a new version row).
             soql2 = (
                 f"SELECT Id FROM {self._kav_type} "
-                f"WHERE KnowledgeArticleId = '{ka_id}' AND PublishStatus = 'Archived' LIMIT 1"
+                f"WHERE KnowledgeArticleId = '{_soql_escape(ka_id)}' AND PublishStatus = 'Archived' LIMIT 1"
             )
             q2 = await self._request("GET", f"{base}/query", params={"q": soql2})
             archived = q2.json().get("records", [])

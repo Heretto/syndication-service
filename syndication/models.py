@@ -8,8 +8,11 @@ application layer via hop-core's organisation APIs.
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
 
 from sqlalchemy import Column, DateTime, Integer, String, Text, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -52,6 +55,7 @@ class SyncConfig(Base):
         try:
             return json.loads(self.mapping_json or "{}")
         except (ValueError, TypeError):
+            log.error("SyncConfig %s has corrupt mapping_json — returning empty mapping.", self.id)
             return {}
 
 

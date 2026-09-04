@@ -145,9 +145,9 @@ class SyncExecutorService:
                         msg = (
                             f"Article {rec.target_article_id} was removed from the source "
                             f"but could not be archived in Salesforce — please remove it "
-                            f"manually in Salesforce Knowledge. Error: {exc}"
+                            f"manually in Salesforce Knowledge."
                         )
-                        log.warning(msg)
+                        log.warning("%s Error: %s", msg, exc)
                         run_warnings.append(msg)
                 if stale_uuids:
                     self._store.mark_articles_archived(sync_id, stale_uuids)

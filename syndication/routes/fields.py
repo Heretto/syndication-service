@@ -1,6 +1,7 @@
 """Routes for dynamic field discovery (source IR fields + target connector fields)."""
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 import httpx
@@ -8,6 +9,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from hop_core.api.dependencies import CurrentUserContext, get_current_active_user_with_org
 from syndication.factory import load_creds
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/fields", tags=["fields"])
 
@@ -62,12 +65,14 @@ async def get_target_fields(
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        log.exception("Salesforce describe failed for credential %s", credential_id)
         raise HTTPException(
             status_code=502,
-            detail=f"Salesforce describe failed: {exc.response.status_code}",
+            detail=f"Salesforce describe failed (HTTP {exc.response.status_code}). Check server logs.",
         )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Salesforce describe failed: {exc}")
+    except Exception:
+        log.exception("Salesforce describe failed for credential %s", credential_id)
+        raise HTTPException(status_code=502, detail="Salesforce describe failed. Check server logs.")
 
     fields = [
         {"api_name": f["name"], "label": f["label"]}
@@ -111,12 +116,14 @@ async def get_target_categories(
             )
             resp.raise_for_status()
     except httpx.HTTPStatusError as exc:
+        log.exception("Salesforce category groups failed for credential %s", credential_id)
         raise HTTPException(
             status_code=502,
-            detail=f"Salesforce category groups failed: {exc.response.status_code}",
+            detail=f"Salesforce category groups failed (HTTP {exc.response.status_code}). Check server logs.",
         )
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Salesforce category groups failed: {exc}")
+    except Exception:
+        log.exception("Salesforce category groups failed for credential %s", credential_id)
+        raise HTTPException(status_code=502, detail="Salesforce category groups failed. Check server logs.")
 
     groups = [
         {"name": g["name"], "label": g["label"]}
