@@ -34,7 +34,7 @@ interface RunWithSyncName extends SyncRun {
             <span class="bc-current">Sync History</span>
           </nav>
           <h1 class="banner-title">Sync History</h1>
-          <p class="banner-subtitle">Complete history of syndication syncs across all sync configurations.</p>
+          <p class="banner-subtitle">Complete history of all syncs across all configurations.</p>
         </div>
       </div>
     </div>
