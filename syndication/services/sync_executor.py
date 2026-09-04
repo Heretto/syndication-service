@@ -114,6 +114,9 @@ class SyncExecutorService:
             )
 
             # ── Persist results ────────────────────────────────────────────────
+            # Collect warnings from both the pipeline and this executor layer.
+            run_warnings: list[str] = list(result.warnings or [])
+
             if result.high_water_mark:
                 self._store.set_high_water_mark(sync_id, result.high_water_mark)
 
@@ -139,10 +142,13 @@ class SyncExecutorService:
                         stale_removed += 1
                         stale_uuids.append(rec.source_uuid)
                     except Exception as exc:
-                        log.warning(
-                            "Failed to archive stale article %s: %s",
-                            rec.target_article_id, exc,
+                        msg = (
+                            f"Article {rec.target_article_id} was removed from the source "
+                            f"but could not be archived in Salesforce — please remove it "
+                            f"manually in Salesforce Knowledge. Error: {exc}"
                         )
+                        log.warning(msg)
+                        run_warnings.append(msg)
                 if stale_uuids:
                     self._store.mark_articles_archived(sync_id, stale_uuids)
 
@@ -151,7 +157,7 @@ class SyncExecutorService:
                 changed_count=result.changed_count,
                 removed_count=result.removed_count + stale_removed,
                 links_fixed=result.links_fixed,
-                warnings=result.warnings or None,
+                warnings=run_warnings or None,
             )
 
             # Reset failure counter on success

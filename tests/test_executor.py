@@ -472,3 +472,77 @@ class TestForceFullRemovals:
             await executor.execute("sync-001")  # no force_full
 
         state_store.list_records.assert_not_called()
+
+    async def test_archive_failure_adds_warning_not_fails_run(
+        self, executor, state_store, mock_connector
+    ):
+        """Archive failure on a stale article must surface as a run warning, not a run failure."""
+        stale = self._stale_record()
+        state_store.list_records = MagicMock(return_value=[stale])
+        mock_connector.archive_article = AsyncMock(
+            side_effect=RuntimeError("INSUFFICIENT_ACCESS_OR_READONLY")
+        )
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a"},
+                removed_count=0,
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        # Run must complete, not fail
+        state_store.complete_run.assert_called_once()
+        state_store.fail_run.assert_not_called()
+
+        # Warning must mention the article ID and instruct manual removal
+        warnings_arg = state_store.complete_run.call_args.kwargs.get("warnings")
+        assert warnings_arg is not None
+        assert len(warnings_arg) == 1
+        assert "sf-stale-999" in warnings_arg[0]
+        assert "manually" in warnings_arg[0].lower()
+
+    async def test_pipeline_warnings_and_executor_warnings_are_merged(
+        self, executor, state_store, mock_connector
+    ):
+        """Warnings from pipeline result and executor archive failures must both reach complete_run."""
+        stale = self._stale_record()
+        state_store.list_records = MagicMock(return_value=[stale])
+        mock_connector.archive_article = AsyncMock(
+            side_effect=RuntimeError("403 Forbidden")
+        )
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a"},
+                removed_count=0,
+                warnings=["pipeline warning 1"],
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        warnings_arg = state_store.complete_run.call_args.kwargs.get("warnings")
+        assert warnings_arg is not None
+        assert len(warnings_arg) == 2
+        assert warnings_arg[0] == "pipeline warning 1"
+        assert "sf-stale-999" in warnings_arg[1]
+
+    async def test_no_warnings_passes_none_to_complete_run(
+        self, executor, state_store, mock_connector
+    ):
+        """When there are no warnings at all, complete_run receives warnings=None."""
+        stale = self._stale_record()
+        state_store.list_records = MagicMock(return_value=[stale])
+        mock_connector.archive_article = AsyncMock()  # succeeds
+
+        with patch("syndication.services.sync_executor.SyncPipeline") as MockPipeline:
+            instance = MockPipeline.return_value
+            instance.run = AsyncMock(return_value=_make_pipeline_result(
+                article_mappings={"uuid-a": "target-a"},
+                removed_count=0,
+                warnings=[],
+            ))
+            await executor.execute("sync-001", force_full=True)
+
+        warnings_arg = state_store.complete_run.call_args.kwargs.get("warnings")
+        assert warnings_arg is None
