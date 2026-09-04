@@ -22,6 +22,7 @@ from syndication.services.scheduler import SyncSchedulerService
 from syndication.routes.syncs import router as syncs_router
 from syndication.routes.fields import router as fields_router
 from syndication.factory import build_adapter, build_connector
+from hop_core.models.organization import Organization
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,17 @@ def _build_lifespan(hop_lifespan):
             # Create all syndication tables (Alembic handles schema migrations
             # in production; create_all is safe for dev/test).
             session_factory = get_session_factory()
+
+            # Seed the default organization in single-org mode so that the
+            # registration endpoint never 500s on a fresh install.
+            settings = get_settings()
+            if settings.single_org_mode and settings.single_org_slug:
+                with session_factory() as db:
+                    if not db.query(Organization).filter_by(slug=settings.single_org_slug).first():
+                        db.add(Organization(name=settings.single_org_slug.capitalize(), slug=settings.single_org_slug))
+                        db.commit()
+                        log.info("Created default organization '%s'.", settings.single_org_slug)
+
             store = SyncStateStore(session_factory=session_factory)
             app.state.session_factory = session_factory
             executor = SyncExecutorService(
