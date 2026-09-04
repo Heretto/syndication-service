@@ -126,7 +126,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         <!-- Recent runs -->
         <section class="detail-card">
           <div class="card-header-row">
-            <h2 class="card-title">Recent Runs</h2>
+            <h2 class="card-title">Recent Syncs</h2>
             <span *ngIf="runsLoading" class="runs-loading">
               <mat-spinner diameter="14"></mat-spinner>
             </span>
@@ -134,7 +134,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 
           <div *ngIf="!runsLoading && runs.length === 0" class="runs-empty">
             <mat-icon>history</mat-icon>
-            <p>No runs yet. Click "Sync Changes" to trigger the first sync.</p>
+            <p>No syncs yet. Click "Sync Changes" to trigger the first sync.</p>
           </div>
 
           <div class="run-list" *ngIf="runs.length > 0">

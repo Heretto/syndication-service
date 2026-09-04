@@ -9,12 +9,13 @@ import { forkJoin } from 'rxjs';
 import { SyncService, SyncConfig, SyncRun } from '../../core/services/sync.service';
 import { StatusBadgeComponent } from '../../shared/components/status-badge/status-badge.component';
 import { CronDisplayComponent } from '../../shared/components/cron-display/cron-display.component';
+import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 
 @Component({
   selector: 'app-dashboard',
   imports: [
     CommonModule, RouterModule, MatIconModule, MatButtonModule,
-    MatProgressSpinnerModule, StatusBadgeComponent, CronDisplayComponent,
+    MatProgressSpinnerModule, StatusBadgeComponent, CronDisplayComponent, LocalDatePipe,
   ],
   template: `
     <!-- Page banner -->
@@ -22,7 +23,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
       <div class="banner-inner">
         <div class="banner-left">
           <h1 class="banner-title">Dashboard</h1>
-          <p class="banner-subtitle">Overview of your syndication syncs and run history.</p>
+          <p class="banner-subtitle">Overview of your syndication syncs and sync history.</p>
         </div>
         <div class="banner-right">
           <a mat-flat-button class="create-btn" routerLink="/syncs/new">
@@ -52,7 +53,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
         <div class="kpi-icon-wrap kpi-runs"><mat-icon>history</mat-icon></div>
         <div class="kpi-body">
           <div class="kpi-value">{{ recentRuns.length }}</div>
-          <div class="kpi-label">Recent Runs</div>
+          <div class="kpi-label">Recent Syncs</div>
         </div>
       </div>
       <div class="kpi-tile" [class.kpi-tile-alert]="errorCount > 0">
@@ -102,13 +103,13 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
       <!-- Recent runs -->
       <section class="panel">
         <div class="panel-header">
-          <h2 class="panel-title">Recent Runs</h2>
+          <h2 class="panel-title">Recent Syncs</h2>
           <a mat-button routerLink="/runs" class="panel-link">View all</a>
         </div>
 
         <div *ngIf="recentRuns.length === 0" class="panel-empty">
           <mat-icon>history</mat-icon>
-          <p>No runs yet. Trigger a sync to see results here.</p>
+          <p>No syncs yet. Trigger a sync to see results here.</p>
         </div>
 
         <div class="run-list" *ngIf="recentRuns.length > 0">
@@ -116,7 +117,7 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
             <app-status-badge [status]="r.status"></app-status-badge>
             <div class="run-info">
               <span class="run-sync-name">{{ syncName(r.sync_id) }}</span>
-              <span class="run-time">{{ r.started_at | date:'MMM d, h:mm a' }}</span>
+              <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
             </div>
             <div class="run-counts" *ngIf="r.changed_count != null">
               <span class="run-count">{{ r.changed_count }} changed</span>

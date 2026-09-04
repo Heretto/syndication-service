@@ -12,13 +12,14 @@ import { HopConfirmDialogComponent } from '@heretto/hop-ui';
 import { SyncService, SyncConfig } from '../../core/services/sync.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CronDisplayComponent } from '../../shared/components/cron-display/cron-display.component';
+import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 
 @Component({
   selector: 'app-sync-list',
   imports: [
     CommonModule, FormsModule, RouterModule, MatButtonModule, MatIconModule,
     MatDialogModule, MatProgressSpinnerModule, MatTooltipModule,
-    CronDisplayComponent,
+    CronDisplayComponent, LocalDatePipe,
   ],
   template: `
     <!-- Page banner -->
@@ -162,13 +163,13 @@ import { CronDisplayComponent } from '../../shared/components/cron-display/cron-
           <div class="card-footer">
             <div class="card-meta">
               <span *ngIf="s.last_run_status === 'failed'" class="meta-run-failed">
-                <mat-icon>error_outline</mat-icon> Last run failed
+                <mat-icon>error_outline</mat-icon> Last sync failed
               </span>
               <span *ngIf="s.created_at && s.last_run_status !== 'failed'" class="meta-text">
-                Created {{ s.created_at | date:'MMM d, yyyy' }}
+                Created {{ s.created_at | localDate:'MMM d, yyyy' }}
               </span>
               <span *ngIf="s.high_water_mark" class="meta-text">
-                Last sync: {{ s.high_water_mark | date:'MMM d, h:mm a' }}
+                Last sync: {{ s.high_water_mark | localDate:'MMM d, h:mm a' }}
               </span>
             </div>
             <div class="card-actions" (click)="$event.stopPropagation()">
@@ -351,7 +352,7 @@ export class SyncListComponent implements OnInit {
     const ref = this.dialog.open(HopConfirmDialogComponent, {
       data: {
         title: 'Delete Sync',
-        message: `Permanently delete "${sync.name}"? This cannot be undone — all run history and records will be removed.`,
+        message: `Permanently delete "${sync.name}"? This cannot be undone — all sync history and records will be removed.`,
         confirmText: 'Delete',
       },
     });
