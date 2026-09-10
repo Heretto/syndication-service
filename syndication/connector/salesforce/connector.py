@@ -11,6 +11,7 @@ The ``mapping`` parameter in ``upsert_article`` carries only the field-map:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import re
@@ -58,6 +59,14 @@ _VALID_SOURCE_FIELDS = frozenset({
     "title", "short_description", "html_body",
     "content_type", "last_modified_iso", "section_path", "sort_order",
 })
+
+# IR fields that exist on IRPage but are not yet synced to Salesforce.
+_UNIMPLEMENTED_SOURCE_FIELDS = frozenset({"breadcrumbs", "versions", "chunked_sections"})
+
+# Salesforce enforces per-org API rate limits. When a 429 is returned, respect
+# the Retry-After header; fall back to this delay if the header is absent.
+_RATE_LIMIT_FALLBACK_WAIT_SECS = 60
+_RATE_LIMIT_MAX_RETRIES = 3
 
 
 class SalesforceConnector(ITargetConnector):
@@ -135,16 +144,29 @@ class SalesforceConnector(ITargetConnector):
             "Accept": "application/json",
         }
         log.info("SF %s %s", method, url)
-        async with httpx.AsyncClient() as client:
-            resp = await client.request(method, url, headers=headers, **kwargs)
 
-        if resp.status_code == 401 and not self._static_token:
-            # Cached OAuth token expired — clear and retry once
-            self._cached_token = None
-            token = await self._ensure_token()
-            headers["Authorization"] = f"Bearer {token}"
+        for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
             async with httpx.AsyncClient() as client:
                 resp = await client.request(method, url, headers=headers, **kwargs)
+
+            if resp.status_code == 401 and not self._static_token:
+                # Cached OAuth token expired — clear and retry once
+                self._cached_token = None
+                token = await self._ensure_token()
+                headers["Authorization"] = f"Bearer {token}"
+                async with httpx.AsyncClient() as client:
+                    resp = await client.request(method, url, headers=headers, **kwargs)
+
+            if resp.status_code == 429 and attempt < _RATE_LIMIT_MAX_RETRIES:
+                wait = int(resp.headers.get("Retry-After", _RATE_LIMIT_FALLBACK_WAIT_SECS))
+                log.warning(
+                    "SF rate limited (attempt %d/%d). Retrying after %ds.",
+                    attempt + 1, _RATE_LIMIT_MAX_RETRIES, wait,
+                )
+                await asyncio.sleep(wait)
+                continue
+
+            break
 
         if not resp.is_success:
             try:
@@ -165,9 +187,16 @@ class SalesforceConnector(ITargetConnector):
         field_keys = set(mapping) - {"category_map"}
         invalid = sorted(field_keys - _VALID_SOURCE_FIELDS)
         for key in invalid:
-            errors.append(
-                ValidationError(field=key, message=f"{key!r} is not a valid source field.")
-            )
+            if key in _UNIMPLEMENTED_SOURCE_FIELDS:
+                errors.append(ValidationError(
+                    field=key,
+                    message=f"{key!r} is not yet supported as a source field for Salesforce Knowledge.",
+                ))
+            else:
+                errors.append(ValidationError(
+                    field=key,
+                    message=f"{key!r} is not a valid source field.",
+                ))
         return errors
 
     async def sanitize_html(self, html: str) -> str:
@@ -262,11 +291,13 @@ class SalesforceConnector(ITargetConnector):
                     continue
                 value = " > ".join(value)
             elif isinstance(value, str) and len(value) > 32000:
-                # Salesforce Rich Text Area fields cap at 32768 chars — truncate and warn.
+                original_len = len(value)
                 value = value[:32000]
                 upsert_warnings.append(
-                    f"Article {ir.uuid!r}: field {sf_field!r} truncated to 32000 chars "
-                    f"(original length {len(getattr(ir, ir_field, ''))})."
+                    f"Article {ir.uuid!r} ({ir.title!r}): Salesforce field {sf_field!r} "
+                    f"was truncated from {original_len:,} to 32,000 characters "
+                    f"(Salesforce Rich Text Area limit). "
+                    f"Shorten the source article or split it into multiple articles."
                 )
             payload[sf_field] = value
 

@@ -138,6 +138,72 @@ class TestValidateMapping:
         errors = await conn.validate_mapping(mapping)
         assert errors == []
 
+    async def test_unimplemented_field_returns_descriptive_error(self):
+        conn = _conn()
+        for field in ("breadcrumbs", "versions", "chunked_sections"):
+            errors = await conn.validate_mapping({field: "SomeField__c"})
+            assert len(errors) == 1
+            assert errors[0].field == field
+            assert "not yet supported" in errors[0].message
+
+
+# ── _request rate limiting ────────────────────────────────────────────────────
+
+class TestRateLimitRetry:
+    _query_url = f"{BASE}/query"
+
+    async def test_retries_on_429_and_succeeds(self):
+        conn = _conn()
+        call_count = 0
+
+        def _side_effect(request, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(429, headers={"Retry-After": "0"}, json={})
+            return httpx.Response(200, json={"records": []})
+
+        with respx.mock() as mock:
+            mock.get(self._query_url).mock(side_effect=_side_effect)
+            resp = await conn._request("GET", self._query_url, params={"q": "SELECT Id FROM Foo"})
+
+        assert resp.status_code == 200
+        assert call_count == 2
+
+    async def test_raises_after_max_retries_exhausted(self):
+        conn = _conn()
+        with respx.mock() as mock:
+            mock.get(self._query_url).mock(
+                return_value=httpx.Response(429, headers={"Retry-After": "0"}, json={})
+            )
+            with pytest.raises(httpx.HTTPStatusError, match="429"):
+                await conn._request("GET", self._query_url, params={"q": "SELECT Id FROM Foo"})
+
+    async def test_uses_retry_after_header(self):
+        """Retry-After value is read from the response header."""
+        import unittest.mock as mock_lib
+        conn = _conn()
+        received_waits: list[int] = []
+
+        async def _capture_sleep(secs):
+            received_waits.append(secs)
+
+        call_count = 0
+
+        def _side_effect(request, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return httpx.Response(429, headers={"Retry-After": "42"}, json={})
+            return httpx.Response(200, json={"records": []})
+
+        with respx.mock() as rmock:
+            rmock.get(self._query_url).mock(side_effect=_side_effect)
+            with mock_lib.patch("syndication.connector.salesforce.connector.asyncio.sleep", _capture_sleep):
+                await conn._request("GET", self._query_url, params={"q": "SELECT Id FROM Foo"})
+
+        assert received_waits == [42]
+
 
 # ── sanitize_html ─────────────────────────────────────────────────────────────
 

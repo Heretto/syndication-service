@@ -198,7 +198,7 @@ class SyncPipeline:
                     result.target_article_id, page.taxonomy, category_map
                 )
             except Exception as exc:
-                msg = f"Category sync failed for {result.target_article_id}: {exc}"
+                msg = f"Category sync failed for {result.target_article_id} ({page.title!r}): {exc}"
                 log.warning(msg)
                 run_warnings.append(msg)
             if not result.update_skipped and self._auto_publish:
