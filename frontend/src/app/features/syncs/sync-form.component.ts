@@ -14,7 +14,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatRadioModule } from '@angular/material/radio';
 import { SyncService, CreateSyncInput, UpdateSyncInput } from '../../core/services/sync.service';
-import { CredentialService, Credential, CredentialCreate } from '../../core/services/credential.service';
+import { CredentialService, Credential, CredentialCreate, CredentialUpdate } from '../../core/services/credential.service';
 import { ApiService } from '../../core/services/api.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { CronBuilderComponent } from '../../shared/components/cron-builder/cron-builder.component';
@@ -145,23 +145,64 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             <mat-hint>Stored credentials for {{ connectorLabel }}. Secrets are encrypted at rest.</mat-hint>
           </mat-form-field>
 
-          <!-- Saved credentials list with delete -->
+          <!-- Saved credentials list with edit / delete -->
           <div *ngIf="!credsLoading && credentials.length > 0" class="cred-manage-list">
-            <div class="cred-manage-row" *ngFor="let c of credentials">
-              <mat-icon class="cred-manage-icon">key</mat-icon>
-              <span class="cred-manage-name">{{ c.name }}</span>
-              <button mat-icon-button type="button" class="cred-delete-btn"
-                      (click)="deleteCredential(c)"
-                      [attr.aria-label]="'Delete credential ' + c.name"
-                      matTooltip="Delete">
-                <mat-icon>delete</mat-icon>
-              </button>
+            <div *ngFor="let c of credentials">
+              <div class="cred-manage-row">
+                <mat-icon class="cred-manage-icon">key</mat-icon>
+                <span class="cred-manage-name">{{ c.name }}</span>
+                <button mat-icon-button type="button" class="cred-action-btn"
+                        (click)="startEditCredential(c)"
+                        [attr.aria-label]="'Edit credential ' + c.name"
+                        matTooltip="Edit">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button type="button" class="cred-delete-btn"
+                        (click)="deleteCredential(c)"
+                        [attr.aria-label]="'Delete credential ' + c.name"
+                        matTooltip="Delete">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+
+              <!-- Inline edit form for this credential -->
+              <div *ngIf="editingCredId === c.id" class="new-cred-form cred-edit-form">
+                <mat-divider class="cred-divider"></mat-divider>
+                <p class="cred-form-title">Edit credential</p>
+
+                <mat-form-field appearance="outline" class="form-field-full">
+                  <mat-label>Credential Name</mat-label>
+                  <input matInput [(ngModel)]="editCredName" [ngModelOptions]="{standalone: true}">
+                </mat-form-field>
+
+                <div class="cred-fields-grid">
+                  <mat-form-field appearance="outline" *ngFor="let f of credentialFields" class="cred-field">
+                    <mat-label>{{ f.label }}</mat-label>
+                    <input matInput
+                           [type]="f.inputType || 'text'"
+                           [(ngModel)]="editCredValues[f.key]"
+                           [ngModelOptions]="{standalone: true}"
+                           placeholder="Leave blank to keep existing">
+                    <mat-hint>Leave blank to keep existing value</mat-hint>
+                  </mat-form-field>
+                </div>
+
+                <div class="cred-actions">
+                  <button mat-stroked-button type="button" (click)="cancelEditCredential()" class="new-cred-btn">
+                    Cancel
+                  </button>
+                  <button mat-flat-button type="button" (click)="saveEditCredential()" [disabled]="savingCred" class="save-cred-btn">
+                    <mat-spinner *ngIf="savingCred" diameter="14" class="btn-spinner"></mat-spinner>
+                    Save Changes
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- Create new credential toggle -->
           <div class="new-cred-toggle">
-            <button mat-stroked-button type="button" (click)="showNewCred = !showNewCred" class="new-cred-btn">
+            <button mat-stroked-button type="button" (click)="toggleNewCred()" class="new-cred-btn">
               <mat-icon>{{ showNewCred ? 'expand_less' : 'add' }}</mat-icon>
               {{ showNewCred ? 'Cancel' : 'Create new credential' }}
             </button>
@@ -396,9 +437,13 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
     .cred-manage-row:last-child { border-bottom: none; }
     .cred-manage-icon { font-size: 14px; width: 14px; height: 14px; color: #5e6e82; flex-shrink: 0; }
     .cred-manage-name { flex: 1; font-size: 13px; color: #1d1f2b; }
+    .cred-action-btn { color: #5e6e82 !important; width: 28px; height: 28px; line-height: 28px; flex-shrink: 0; }
+    .cred-action-btn:hover { color: #011627 !important; }
+    .cred-action-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .cred-delete-btn { color: #5e6e82 !important; width: 28px; height: 28px; line-height: 28px; flex-shrink: 0; }
     .cred-delete-btn:hover { color: #de350b !important; }
     .cred-delete-btn mat-icon { font-size: 16px; width: 16px; height: 16px; }
+    .cred-edit-form { border-top: 1px solid #f0f2f7; margin-top: 0; }
     .new-cred-toggle { margin-top: 8px; }
     .new-cred-btn { border-color: #dee2ec; color: #5e6e82; font-size: 12.5px; }
     .new-cred-form { margin-top: 12px; }
@@ -527,6 +572,9 @@ export class SyncFormComponent implements OnInit {
   savingCred    = false;
   newCredName   = '';
   newCredValues: Record<string, string> = {};
+  editingCredId: string | null = null;
+  editCredName  = '';
+  editCredValues: Record<string, string> = {};
 
   // Dynamic field lists
   sourceFields: { key: string; label: string }[] = [];
@@ -728,6 +776,53 @@ export class SyncFormComponent implements OnInit {
           this.savingCred  = false;
           this._resetNewCredForm(connectorId);
           this.notifications.success(`Credential "${cred.name}" saved.`);
+        },
+        error: () => { this.savingCred = false; },
+      });
+  }
+
+  toggleNewCred(): void {
+    this.showNewCred = !this.showNewCred;
+    if (this.showNewCred) {
+      this.editingCredId = null;
+    }
+  }
+
+  startEditCredential(cred: Credential): void {
+    this.editingCredId = cred.id;
+    this.editCredName  = cred.name;
+    this.editCredValues = {};
+    this.showNewCred = false;
+  }
+
+  cancelEditCredential(): void {
+    this.editingCredId = null;
+    this.editCredName  = '';
+    this.editCredValues = {};
+  }
+
+  saveEditCredential(): void {
+    if (!this.editingCredId) return;
+    const nonEmpty: Record<string, string> = {};
+    for (const [k, v] of Object.entries(this.editCredValues)) {
+      if (v && v.trim()) nonEmpty[k] = v.trim();
+    }
+    const update: CredentialUpdate = {};
+    if (this.editCredName.trim()) update.name = this.editCredName.trim();
+    if (Object.keys(nonEmpty).length) update.credentials = nonEmpty;
+    if (!update.name && !update.credentials) {
+      this.cancelEditCredential();
+      return;
+    }
+    this.savingCred = true;
+    this.credService.update(this.editingCredId, update)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.credentials = this.credentials.map(c => c.id === updated.id ? updated : c);
+          this.savingCred = false;
+          this.cancelEditCredential();
+          this.notifications.success(`Credential "${updated.name}" updated.`);
         },
         error: () => { this.savingCred = false; },
       });

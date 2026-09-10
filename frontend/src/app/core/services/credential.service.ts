@@ -17,6 +17,11 @@ export interface CredentialCreate {
   credentials: Record<string, string>;
 }
 
+export interface CredentialUpdate {
+  name?: string;
+  credentials?: Record<string, string>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CredentialService {
   private api = inject(ApiService);
@@ -29,6 +34,10 @@ export class CredentialService {
 
   create(data: CredentialCreate): Observable<Credential> {
     return this.api.post<Credential>('/credentials', data);
+  }
+
+  update(id: string, data: CredentialUpdate): Observable<Credential> {
+    return this.api.put<Credential>(`/credentials/${id}`, data);
   }
 
   delete(id: string): Observable<void> {
