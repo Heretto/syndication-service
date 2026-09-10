@@ -10,6 +10,7 @@ Responsible for:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
@@ -106,11 +107,17 @@ class SyncExecutorService:
                     sync_id, peek.removed_uuids
                 )
 
-            result = await pipeline.run(
+            timeout = getattr(self._settings, "sync_timeout_seconds", None)
+            coro = pipeline.run(
                 run_id=run_id,
                 since=since,
                 removed_target_ids=removed_target_ids,
                 force_full=force_full,
+            )
+            result = (
+                await asyncio.wait_for(coro, timeout=float(timeout))
+                if timeout
+                else await coro
             )
 
             # ── Persist results ────────────────────────────────────────────────

@@ -26,11 +26,22 @@ CredentialTypeRegistry.register("salesforce", label="Salesforce Knowledge")
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def load_creds(credential_id: str | None, session_factory) -> dict:
+def load_creds(
+    credential_id: str | None,
+    session_factory,
+    org_id: str | None = None,
+) -> dict:
     """Load and decrypt a Credential record from the DB.
 
+    Args:
+        credential_id: UUID string of the credential to load.
+        session_factory: SQLAlchemy sessionmaker.
+        org_id: When provided, raises PermissionError if the credential belongs
+                to a different organisation (prevents cross-org credential use).
+
     Raises:
-        ValueError: if *credential_id* is None or the record does not exist.
+        ValueError:      credential_id is None or record not found.
+        PermissionError: credential exists but belongs to a different org.
     """
     if not credential_id:
         raise ValueError(
@@ -44,7 +55,34 @@ def load_creds(credential_id: str | None, session_factory) -> dict:
                 f"Credential {credential_id!r} not found. "
                 "It may have been deleted."
             )
+        if org_id is not None and str(cred.organization_id) != org_id:
+            raise PermissionError(
+                f"Credential {credential_id!r} does not belong to this organisation."
+            )
         return decrypt_credentials(cred.encrypted_data)
+
+
+def check_credential_access(
+    credential_id: str | None,
+    session_factory,
+    org_id: str,
+) -> None:
+    """Verify credential exists and belongs to org_id without decrypting it.
+
+    Raises:
+        ValueError:      credential not found.
+        PermissionError: credential belongs to a different org.
+    """
+    if not credential_id:
+        return
+    with session_factory() as db:
+        cred = db.get(Credential, _uuid.UUID(credential_id))
+        if cred is None:
+            raise ValueError(f"Credential {credential_id!r} not found.")
+        if str(cred.organization_id) != org_id:
+            raise PermissionError(
+                f"Credential {credential_id!r} does not belong to this organisation."
+            )
 
 
 # ── Public factories ──────────────────────────────────────────────────────────

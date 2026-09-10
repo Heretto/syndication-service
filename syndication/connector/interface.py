@@ -29,6 +29,7 @@ class UpsertResult:
     url: str | None = None     # canonical URL of the article in the target system
     was_online: bool = False   # True = article was already Published when upserted
     update_skipped: bool = False  # True = Online article could not be updated (API limitation)
+    warnings: list[str] = field(default_factory=list)  # non-fatal issues (e.g. body truncation)
 
 
 class ITargetConnector(ABC):
@@ -99,8 +100,17 @@ class ITargetConnector(ABC):
         self,
         run_id: str,
         link_map: dict[str, str],
+        html_body_field: str = "",
     ) -> int:
         """Post-batch pass: rewrite links in all articles loaded in *run_id*.
+
+        Args:
+            run_id:          Identifier of the current sync run (for logging).
+            link_map:        source_href → target_article_id for every article
+                             upserted in this run.
+            html_body_field: The target-system field that holds the article body
+                             (e.g. ``"Answer__c"`` for Salesforce Knowledge).
+                             When empty the implementation should be a no-op.
 
         Returns the number of articles updated.  Called once after all
         ``upsert_article`` calls for a sync run have completed.

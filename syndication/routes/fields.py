@@ -50,7 +50,13 @@ async def get_target_fields(
         return []
 
     try:
-        creds = load_creds(credential_id, req.app.state.session_factory)
+        creds = load_creds(
+            credential_id,
+            req.app.state.session_factory,
+            org_id=str(_ctx.organization_id),
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -98,7 +104,13 @@ async def get_target_categories(
         return []
 
     try:
-        creds = load_creds(credential_id, req.app.state.session_factory)
+        creds = load_creds(
+            credential_id,
+            req.app.state.session_factory,
+            org_id=str(_ctx.organization_id),
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

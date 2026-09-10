@@ -75,9 +75,13 @@ class _FirstUserAdminMiddleware:
 
         db = get_session_factory()()
         try:
-            if db.query(User).count() != 1:
+            # If any superuser already exists, nothing to do.
+            if db.query(User).filter(User.is_superuser.is_(True)).first():
                 return
-            user = db.query(User).first()
+            # Promote the earliest-registered user (guards against the race where
+            # two registrations happen before either middleware check runs — under
+            # that scenario neither would see count==1, so we'd promote nobody).
+            user = db.query(User).order_by(User.created_at).first()
             if user and not user.is_superuser:
                 user.is_superuser = True
                 member = db.query(OrganizationMember).filter_by(user_id=user.id).first()

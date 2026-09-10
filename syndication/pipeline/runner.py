@@ -180,14 +180,17 @@ class SyncPipeline:
 
         # ── Stage 4: Load (upsert + publish) ─────────────────────────────────
         upsert_results: list[UpsertResult] = []
-        link_map: dict[str, str] = {}  # source_uuid → target_article_id
+        link_map: dict[str, str] = {}   # source_uuid → target_article_id (executor persistence)
+        href_map: dict[str, str] = {}   # source_href → target_article_id (link rewriting)
         run_warnings: list[str] = []
 
         category_map: dict = self._mapping.get("category_map", {})
         field_map = {k: v for k, v in self._mapping.items() if k != "category_map"}
+        html_body_field: str = field_map.get("html_body", "")
 
         for page in ready_pages:
             result = await self._connector.upsert_article(page, field_map)
+            run_warnings.extend(result.warnings)
             # Always sync categories — they are independent of the draft/publish
             # cycle and can be applied to Published articles directly.
             try:
@@ -207,6 +210,7 @@ class SyncPipeline:
                     run_warnings.append(msg)
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
+            href_map[page.href] = result.target_article_id
 
         # ── Stage 4.5: Deferred sibling relationship pass (force_full only) ──
         if structure_entries:
@@ -233,7 +237,9 @@ class SyncPipeline:
                 archived_count += 1
 
         # ── Stage 6: Deferred link fixup ─────────────────────────────────────
-        links_fixed = await self._connector.deferred_link_fixup(run_id, link_map)
+        links_fixed = await self._connector.deferred_link_fixup(
+            run_id, href_map, html_body_field=html_body_field
+        )
 
         return PipelineResult(
             changed_count=len(upsert_results),

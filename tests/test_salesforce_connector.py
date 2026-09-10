@@ -596,39 +596,45 @@ class TestDeferredLinkFixup:
 
     async def test_returns_non_negative_int(self):
         conn = _conn()
-        link_map = {"uuid-a": "art-001"}
+        link_map = {"/path/a": "art-001"}
         with respx.mock() as mock:
             mock.get(self._article_url("art-001")).mock(
-                return_value=httpx.Response(200, json={"Body": ""})
+                return_value=httpx.Response(200, json={"Answer__c": ""})
             )
-            n = await conn.deferred_link_fixup("run-1", link_map)
+            n = await conn.deferred_link_fixup("run-1", link_map, html_body_field="Answer__c")
         assert isinstance(n, int)
         assert n >= 0
 
+    async def test_no_op_when_html_body_field_empty(self):
+        conn = _conn()
+        link_map = {"/path/a": "art-001"}
+        n = await conn.deferred_link_fixup("run-1", link_map, html_body_field="")
+        assert n == 0
+
     async def test_modified_article_increments_count(self):
         conn = _conn()
-        link_map = {"uuid-a": "art-002"}
+        link_map = {"/path/a": "art-002"}
         with respx.mock() as mock:
             mock.get(self._article_url("art-002")).mock(
-                return_value=httpx.Response(200, json={"Body": '<a href="uuid-a">link</a>'})
+                return_value=httpx.Response(200, json={"Answer__c": '<a href="/path/a">link</a>'})
             )
             mock.patch(self._article_url("art-002")).mock(
                 return_value=httpx.Response(204)
             )
-            n = await conn.deferred_link_fixup("run-1", link_map)
+            n = await conn.deferred_link_fixup("run-1", link_map, html_body_field="Answer__c")
         assert n == 1
 
     async def test_unchanged_article_not_patched(self):
         conn = _conn()
-        link_map = {"uuid-b": "art-003"}
+        link_map = {"/path/b": "art-003"}
         with respx.mock(assert_all_called=False) as mock:
             mock.get(self._article_url("art-003")).mock(
-                return_value=httpx.Response(200, json={"Body": "<p>No links</p>"})
+                return_value=httpx.Response(200, json={"Answer__c": "<p>No links</p>"})
             )
             patch_route = mock.patch(self._article_url("art-003")).mock(
                 return_value=httpx.Response(204)
             )
-            n = await conn.deferred_link_fixup("run-1", link_map)
+            n = await conn.deferred_link_fixup("run-1", link_map, html_body_field="Answer__c")
         assert n == 0
         assert not patch_route.called
         assert n >= 0
@@ -756,10 +762,15 @@ class TestSyncDataCategories:
         assert "ka01XYZ" in str(route.calls.last.request.url)
 
     async def test_deletes_each_existing_selection(self):
+        # Existing selections have categories not in the desired set → both deleted.
         conn = _conn()
+        existing_records = [
+            {"Id": "sel-1", "DataCategoryGroupName": "Audiences", "DataCategoryName": "OldCat"},
+            {"Id": "sel-2", "DataCategoryGroupName": "Audiences", "DataCategoryName": "AnotherOld"},
+        ]
         with respx.mock() as mock:
             mock.get(self._query_url()).mock(
-                return_value=httpx.Response(200, json={"records": [{"Id": "sel-1"}, {"Id": "sel-2"}]})
+                return_value=httpx.Response(200, json={"records": existing_records})
             )
             del1 = mock.delete(self._sel_url("sel-1")).mock(return_value=httpx.Response(204))
             del2 = mock.delete(self._sel_url("sel-2")).mock(return_value=httpx.Response(204))
@@ -770,6 +781,25 @@ class TestSyncDataCategories:
 
         assert del1.called
         assert del2.called
+
+    async def test_skips_already_present_selection(self):
+        # Existing selection matches desired → no delete and no re-insert.
+        conn = _conn()
+        existing_records = [
+            {"Id": "sel-existing", "DataCategoryGroupName": "Audiences", "DataCategoryName": "Agent"},
+        ]
+        with respx.mock(assert_all_called=False) as mock:
+            mock.get(self._query_url()).mock(
+                return_value=httpx.Response(200, json={"records": existing_records})
+            )
+            delete_route = mock.delete(self._sel_url("sel-existing")).mock(return_value=httpx.Response(204))
+            post_route = mock.post(self._sel_url()).mock(return_value=httpx.Response(201, json={"id": "new"}))
+
+            taxonomy = {"Audiences": [IRTaxonomyValue("Agent", "Agent")]}
+            await conn.sync_data_categories("ka01", taxonomy, {"Audiences": "Audiences"})
+
+        assert not delete_route.called
+        assert not post_route.called
 
     async def test_inserts_one_record_per_taxonomy_value(self):
         conn = _conn()

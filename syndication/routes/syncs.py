@@ -20,6 +20,7 @@ from pydantic import BaseModel, field_validator
 
 from hop_core.api.dependencies import CurrentUserContext, get_current_active_user_with_org
 from hop_core.core.rate_limit import limiter
+from syndication.factory import check_credential_access
 
 router = APIRouter(prefix="/syncs", tags=["syncs"])
 
@@ -263,6 +264,18 @@ def _assert_same_org(cfg: Any, context: CurrentUserContext) -> None:
         )
 
 
+def _assert_credential_access(req: Request, credential_id: str | None, org_id: str) -> None:
+    """Raise 403/404 if credential_id is set but inaccessible to this org."""
+    if not credential_id:
+        return
+    try:
+        check_credential_access(credential_id, req.app.state.session_factory, org_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=list[SyncConfigResponse])
@@ -283,6 +296,7 @@ def create_sync(request: Request, body: CreateSyncRequest, context: OrgCtx):
     _validate_publish_mode(body.publish_mode)
     _validate_mapping(body.connector_id, body.mapping)
     org_id = str(context.organization_id)
+    _assert_credential_access(request, body.credential_id, org_id)
     cfg = _store(request).create_sync(
         name=body.name,
         adapter_id=body.adapter_id,
@@ -317,6 +331,7 @@ def update_sync(request: Request, sync_id: str, body: UpdateSyncRequest, context
     _assert_same_org(cfg, context)
     if body.mapping is not None:
         _validate_mapping(cfg.connector_id, body.mapping)
+    _assert_credential_access(request, body.credential_id, str(context.organization_id))
     updates = body.model_dump(exclude_none=True)
     # Allow explicit None to clear nullable fields
     if "cron_expression" in body.model_fields_set and body.cron_expression is None:

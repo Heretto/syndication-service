@@ -163,6 +163,8 @@ class DeployAdapter(ISourceAdapter):
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
+    _MAX_STRUCTURE_DEPTH = 100
+
     @staticmethod
     def _collect_topics(
         node: dict,
@@ -170,6 +172,7 @@ class DeployAdapter(ISourceAdapter):
         ancestor_path: list[str] | None = None,
         sibling_uuids: list[str] | None = None,
         sort_order: int = 1,
+        _depth: int = 0,
     ) -> None:
         """Recursively collect StructureEntry objects for every topicref with content.
 
@@ -181,6 +184,13 @@ class DeployAdapter(ISourceAdapter):
             ancestor_path = []
         if sibling_uuids is None:
             sibling_uuids = []
+
+        if _depth > DeployAdapter._MAX_STRUCTURE_DEPTH:
+            raise RecursionError(
+                f"Deployment structure exceeds maximum nesting depth "
+                f"({DeployAdapter._MAX_STRUCTURE_DEPTH}). "
+                "Check for cycles or unexpectedly deep nesting in the sitemap."
+            )
 
         href = node.get("href", "/")
         if node.get("type") == "topicref" and href != "/":
@@ -212,11 +222,11 @@ class DeployAdapter(ISourceAdapter):
                 topicref_index += 1
                 child_uuid = child.get("sys", {}).get("uuid", "")
                 siblings = [u for u in topicref_child_uuids if u != child_uuid]
-                DeployAdapter._collect_topics(child, out, ancestor_path, siblings, topicref_index)
+                DeployAdapter._collect_topics(child, out, ancestor_path, siblings, topicref_index, _depth + 1)
             elif child_type in ("topichead", "sitesection"):
                 title = child.get("title", "")
                 new_path = ancestor_path + [title] if title else ancestor_path[:]
-                DeployAdapter._collect_topics(child, out, new_path)
+                DeployAdapter._collect_topics(child, out, new_path, _depth=_depth + 1)
 
     @staticmethod
     def _parse_taxonomy(custom_metadata: dict) -> dict[str, list[IRTaxonomyValue]]:

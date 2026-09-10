@@ -185,9 +185,9 @@ class TestDeferredLinkFixup:
         await pipeline.run(run_id="r1", since=None)
         call_kwargs = mock_connector.deferred_link_fixup.await_args
         link_map = call_kwargs.args[1] if len(call_kwargs.args) > 1 else call_kwargs.kwargs.get("link_map", {})
-        # link_map maps source uuid → target article id
-        assert "uuid-a" in link_map
-        assert "uuid-b" in link_map
+        # link_map is now keyed by source href (not uuid) for link rewriting
+        assert "path/a" in link_map
+        assert "path/b" in link_map
 
 
 # ── PipelineResult values ─────────────────────────────────────────────────────

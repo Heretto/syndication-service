@@ -85,6 +85,11 @@ class SalesforceConnector(ITargetConnector):
     ) -> None:
         _validate_sf_identifier(knowledge_type, "knowledge_type")
         _validate_sf_identifier(external_id_field, "external_id_field")
+        if not re.match(r"^\d+\.\d+$", api_version):
+            raise ValueError(
+                f"Invalid api_version {api_version!r}. "
+                "Must be in the form '<major>.<minor>' (e.g. '65.0')."
+            )
         self._instance_url = instance_url.rstrip("/")
         self._api_version = api_version
         self._static_token = access_token
@@ -242,6 +247,7 @@ class SalesforceConnector(ITargetConnector):
             promote it back to Online.
         """
         base = self._base_url()
+        upsert_warnings: list[str] = []
 
         # Build field payload from mapping
         payload: dict[str, Any] = {}
@@ -256,8 +262,12 @@ class SalesforceConnector(ITargetConnector):
                     continue
                 value = " > ".join(value)
             elif isinstance(value, str) and len(value) > 32000:
-                # Salesforce Rich Text Area fields cap at 32768 chars
+                # Salesforce Rich Text Area fields cap at 32768 chars — truncate and warn.
                 value = value[:32000]
+                upsert_warnings.append(
+                    f"Article {ir.uuid!r}: field {sf_field!r} truncated to 32000 chars "
+                    f"(original length {len(getattr(ir, ir_field, ''))})."
+                )
             payload[sf_field] = value
 
         # 1. Query for any existing version by our tracking field
@@ -316,6 +326,7 @@ class SalesforceConnector(ITargetConnector):
                 target_article_id=article_id,
                 created=False,
                 was_online=publish_status == "Online",
+                warnings=upsert_warnings,
             )
         else:
             # New article: use the Lightning Experience UI API.
@@ -347,7 +358,11 @@ class SalesforceConnector(ITargetConnector):
                 f"{base}/sobjects/{self._kav_type}/{kav_id}",
                 json=payload,
             )
-            return UpsertResult(target_article_id=kav_id, created=True)
+            return UpsertResult(
+                target_article_id=kav_id,
+                created=True,
+                warnings=upsert_warnings,
+            )
 
     async def publish_article(self, target_article_id: str, was_online: bool = False) -> None:
         """Publish a Knowledge article via the Lightning Knowledge standard action.
@@ -388,20 +403,38 @@ class SalesforceConnector(ITargetConnector):
         base = self._base_url()
         sel_obj = "Knowledge__DataCategorySelection"
 
-        soql = f"SELECT Id FROM {sel_obj} WHERE ParentId = '{_soql_escape(article_id)}'"
+        # 1. Fetch existing selections (group + category name → record id).
+        soql = (
+            f"SELECT Id, DataCategoryGroupName, DataCategoryName "
+            f"FROM {sel_obj} WHERE ParentId = '{_soql_escape(article_id)}'"
+        )
         q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
-        for rec in q_resp.json().get("records", []):
-            await self._request("DELETE", f"{base}/sobjects/{sel_obj}/{rec['Id']}")
+        existing: dict[tuple[str, str], str] = {
+            (r["DataCategoryGroupName"], r["DataCategoryName"]): r["Id"]
+            for r in q_resp.json().get("records", [])
+        }
 
+        # 2. Compute the desired set from the taxonomy + category_map.
+        desired: set[tuple[str, str]] = set()
         for deploy_group, sf_group in category_map.items():
             for tv in taxonomy.get(deploy_group, []):
+                desired.add((sf_group, tv.value))
+
+        # 3. Delete only selections that are no longer desired.
+        for pair, sel_id in existing.items():
+            if pair not in desired:
+                await self._request("DELETE", f"{base}/sobjects/{sel_obj}/{sel_id}")
+
+        # 4. Insert only selections that are not already present.
+        for sf_group, cat_name in desired:
+            if (sf_group, cat_name) not in existing:
                 await self._request(
                     "POST",
                     f"{base}/sobjects/{sel_obj}",
                     json={
                         "ParentId": article_id,
                         "DataCategoryGroupName": sf_group,
-                        "DataCategoryName": tv.value,
+                        "DataCategoryName": cat_name,
                     },
                 )
 
@@ -460,41 +493,49 @@ class SalesforceConnector(ITargetConnector):
         self,
         run_id: str,
         link_map: dict[str, str],
+        html_body_field: str = "",
     ) -> int:
         """Post-batch link rewrite pass.
 
-        For each source_uuid → article_id pair in *link_map*:
+        For each source_href → article_id pair in *link_map*:
         1. Fetch the current article HTML body from Salesforce.
-        2. Rewrite any inter-article links using the full URL map.
-        3. PATCH the article if the HTML changed.
+        2. Rewrite any inter-article links whose href matches a key in link_map.
+        3. PATCH the article only if the HTML changed.
+
+        Args:
+            link_map:        source_href → target_article_id (keyed by source
+                             content path, not UUID).
+            html_body_field: Salesforce field that holds the article body
+                             (e.g. ``"Answer__c"``). No-op when empty.
 
         Returns the number of articles actually modified.
         """
-        if not link_map:
+        if not link_map or not html_body_field:
             return 0
 
         base = self._base_url()
 
-        # Build url_map: source_uuid → full Salesforce article URL
+        # Build href → target SF article URL for link substitution.
         url_map = {
-            source_uuid: f"{self._instance_url}/articles/{article_id}"
-            for source_uuid, article_id in link_map.items()
+            source_href: f"{self._instance_url}/articles/{article_id}"
+            for source_href, article_id in link_map.items()
         }
 
         count = 0
-        for source_uuid, article_id in link_map.items():
+        for source_href, article_id in link_map.items():
             resp = await self._request(
                 "GET",
                 f"{base}/sobjects/{self._kav_type}/{article_id}",
+                params={"fields": html_body_field},
             )
             body = resp.json()
-            current = body.get("Body", "") or ""
+            current = body.get(html_body_field, "") or ""
             rewritten = await self.rewrite_links(current, url_map)
             if rewritten != current:
                 await self._request(
                     "PATCH",
                     f"{base}/sobjects/{self._kav_type}/{article_id}",
-                    json={"Body": rewritten},
+                    json={html_body_field: rewritten},
                 )
                 count += 1
 

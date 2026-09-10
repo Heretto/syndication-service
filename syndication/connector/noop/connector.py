@@ -56,5 +56,6 @@ class NoopConnector(ITargetConnector):
         self,
         run_id: str,
         link_map: dict[str, str],
+        html_body_field: str = "",
     ) -> int:
         return 0
