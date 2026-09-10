@@ -22,23 +22,12 @@ A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge o
 ### Prerequisites
 
 - Python 3.11+, Node.js 24+
-- [hop-core](https://github.com/Heretto/hop-core) cloned as a sibling directory
-
-```
-parent-dir/
-├── hop-core/
-└── syndication-service/
-```
 
 ### 1 — Install dependencies
 
 ```bash
-git clone https://github.com/Heretto/hop-core.git
-pip install ./hop-core
-
-cd hop-core/ui && npm install && npm run build && cd -
-
 cd syndication-service
+pip install -r requirements.txt
 pip install -e ".[dev]"
 cd frontend && npm install && cd ..
 ```
@@ -292,33 +281,25 @@ All routes are mounted under `/api/v1` and require a valid JWT. Routes are org-s
 
 - Python 3.11+
 - Node.js 24+
-- [hop-core](https://github.com/Heretto/hop-core) — must be cloned and installed before the syndication service
 
-### Required directory layout
-
-Both repos must be siblings under the same parent directory. This is required for the Docker build and for the frontend SCSS theme imports.
-
-```
-parent-dir/
-├── hop-core/
-└── syndication-service/
-```
-
-### 1 — Install hop-core
+### 1 — Install Python dependencies
 
 ```bash
-git clone https://github.com/Heretto/hop-core.git
-pip install ./hop-core
+cd syndication-service
+pip install -r requirements.txt   # installs hop-core 0.1.3 and all other deps
+pip install -e ".[dev]"
 ```
 
 ### 2 — Build hop-ui (required for the frontend)
 
+The Angular frontend imports its component library from hop-core. Clone hop-core as a sibling directory and build the UI package before starting the frontend dev server:
+
 ```bash
-cd hop-core/ui
-npm install
-npm run build
-cd -
+git clone https://github.com/Heretto/hop-core.git   # sibling of syndication-service/
+cd hop-core/ui && npm install && npm run build && cd -
 ```
+
+> The sibling directory is only needed for the **frontend dev server**. The backend and Docker build do not require it.
 
 ### 3 — Configure environment
 
@@ -374,7 +355,7 @@ pytest tests/
 
 ### Docker Compose
 
-Requires the same sibling directory layout above. Run from within `syndication-service/`:
+Run from within `syndication-service/`. The frontend build still requires `hop-core/` as a sibling directory for SCSS imports; clone it if it isn't present already.
 
 **Option A — auto-create admin at startup (recommended for first install)**
 
