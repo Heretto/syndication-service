@@ -264,7 +264,7 @@ class SalesforceConnector(ITargetConnector):
         soql = (
             f"SELECT Id, PublishStatus FROM {self._kav_type} "
             f"WHERE {self._ext_field} = '{_soql_escape(ir.uuid)}' "
-            f"AND PublishStatus IN ('Draft', 'Online') "
+            f"AND PublishStatus IN ('Draft', 'Online', 'Archived') "
             f"ORDER BY LastModifiedDate DESC LIMIT 1"
         )
         q_resp = await self._request("GET", f"{base}/query", params={"q": soql})
@@ -304,6 +304,9 @@ class SalesforceConnector(ITargetConnector):
                         )
                     raise
 
+            # UrlName must not be sent on updates — it conflicts with existing
+            # article slugs (Salesforce enforces uniqueness across all statuses).
+            payload.pop("UrlName", None)
             await self._request(
                 "PATCH",
                 f"{base}/sobjects/{self._kav_type}/{article_id}",

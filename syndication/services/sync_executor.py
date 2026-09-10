@@ -164,7 +164,7 @@ class SyncExecutorService:
             self._consecutive_failures[sync_id] = 0
 
         except Exception as exc:
-            error_msg = str(exc)
+            error_msg = str(exc) or type(exc).__name__
             log.exception("Sync %s failed: %s", sync_id, error_msg)
             self._store.fail_run(run_id=run_id, error_message=error_msg)
 
