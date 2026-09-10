@@ -205,6 +205,41 @@ class TestRateLimitRetry:
         assert received_waits == [42]
 
 
+# ── _ensure_token auth error messaging ────────────────────────────────────────
+
+class TestEnsureTokenAuthError:
+    _token_url = f"{SF_INSTANCE}/services/oauth2/token"
+
+    async def test_invalid_client_raises_descriptive_error(self):
+        conn = _oauth_conn()
+        with respx.mock() as mock:
+            mock.post(self._token_url).mock(
+                return_value=httpx.Response(
+                    400,
+                    json={"error": "invalid_client", "error_description": "invalid client credentials"},
+                )
+            )
+            with pytest.raises(httpx.HTTPStatusError) as exc_info:
+                await conn._ensure_token()
+
+        msg = str(exc_info.value)
+        assert "Salesforce authentication failed" in msg
+        assert "invalid client credentials" in msg
+        assert "Client ID or Client Secret" in msg
+        assert "App Manager" in msg
+
+    async def test_error_without_description_falls_back_to_error_field(self):
+        conn = _oauth_conn()
+        with respx.mock() as mock:
+            mock.post(self._token_url).mock(
+                return_value=httpx.Response(401, json={"error": "unauthorized_client"})
+            )
+            with pytest.raises(httpx.HTTPStatusError) as exc_info:
+                await conn._ensure_token()
+
+        assert "unauthorized_client" in str(exc_info.value)
+
+
 # ── sanitize_html ─────────────────────────────────────────────────────────────
 
 class TestSanitizeHtml:

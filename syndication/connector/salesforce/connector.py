@@ -127,7 +127,20 @@ class SalesforceConnector(ITargetConnector):
                     "client_secret": self._client_secret,
                 },
             )
-            resp.raise_for_status()
+        if not resp.is_success:
+            try:
+                detail = resp.json().get("error_description") or resp.json().get("error") or resp.text
+            except Exception:
+                detail = resp.text
+            raise httpx.HTTPStatusError(
+                f"Salesforce authentication failed ({resp.status_code}): {detail}. "
+                f"Your Client ID or Client Secret may have expired or been revoked. "
+                f"To resolve: go to Setup → Apps → App Manager in Salesforce, "
+                f"locate your Connected App, regenerate the credentials, "
+                f"and update this sync's credential settings.",
+                request=resp.request,
+                response=resp,
+            )
         self._cached_token = resp.json()["access_token"]
         return self._cached_token
 
