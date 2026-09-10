@@ -30,6 +30,68 @@ from hop_core.core.security import get_password_hash
 log = logging.getLogger(__name__)
 
 
+# ── First-user-as-admin middleware ────────────────────────────────────────────
+
+class _FirstUserAdminMiddleware:
+    """Promote the first registered user to superuser + org admin.
+
+    Runs after every POST /auth/register that returns 200. If exactly one user
+    exists at that point (meaning this was the first registration) and they are
+    not already a superuser, they are promoted. All other requests pass through
+    untouched.
+    """
+
+    def __init__(self, app):
+        self._app = app
+
+    async def __call__(self, scope, receive, send):
+        is_register = (
+            scope.get("type") == "http"
+            and scope.get("method") == "POST"
+            and scope.get("path", "").endswith("/auth/register")
+        )
+        if not is_register:
+            await self._app(scope, receive, send)
+            return
+
+        status: list[int] = []
+
+        async def _capture(message):
+            if message["type"] == "http.response.start":
+                status.append(message["status"])
+            await send(message)
+
+        await self._app(scope, receive, _capture)
+
+        if status and status[0] == 200:
+            self._maybe_promote()
+
+    @staticmethod
+    def _maybe_promote():
+        from hop_core.db import get_session_factory
+        from hop_core.models.user import User
+        from hop_core.models.organization import OrganizationMember
+        from hop_core.models.enums import OrganizationRole
+
+        db = get_session_factory()()
+        try:
+            if db.query(User).count() != 1:
+                return
+            user = db.query(User).first()
+            if user and not user.is_superuser:
+                user.is_superuser = True
+                member = db.query(OrganizationMember).filter_by(user_id=user.id).first()
+                if member:
+                    member.role = OrganizationRole.ADMIN
+                db.commit()
+                log.info("Auto-promoted first registered user <%s> to superuser.", user.email)
+        except Exception:
+            log.exception("Failed to auto-promote first registered user.")
+            db.rollback()
+        finally:
+            db.close()
+
+
 # ── First-run seed ────────────────────────────────────────────────────────────
 
 def _seed(session_factory):
@@ -151,6 +213,8 @@ app = create_hop_app(
     description="DITA → knowledge-base syndication built on hop-core.",
     version="0.1.0",
 )
+
+app.add_middleware(_FirstUserAdminMiddleware)
 
 # Health check — available without auth, outside the api_prefix
 @app.get("/health", tags=["health"])
