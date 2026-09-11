@@ -145,6 +145,38 @@ class TestAttributeFiltering:
         assert 'alt=' in result
         assert 'class=' not in result
 
+    def test_javascript_href_stripped(self):
+        html = '<a href="javascript:alert(1)">click</a>'
+        result = sanitize_html(html)
+        assert "javascript:" not in result
+        assert "click" in result  # text preserved
+
+    def test_data_uri_href_stripped(self):
+        html = '<a href="data:text/html,<script>x</script>">click</a>'
+        result = sanitize_html(html)
+        assert "data:" not in result
+
+    def test_vbscript_href_stripped(self):
+        html = '<a href="vbscript:MsgBox(1)">click</a>'
+        result = sanitize_html(html)
+        assert "vbscript:" not in result
+
+    def test_http_href_kept(self):
+        html = '<a href="https://help.example.com/topic">link</a>'
+        result = sanitize_html(html)
+        assert 'href="https://help.example.com/topic"' in result
+
+    def test_relative_href_kept(self):
+        html = '<a href="/help/topic">link</a>'
+        result = sanitize_html(html)
+        assert 'href="/help/topic"' in result
+
+    def test_javascript_img_src_stripped(self):
+        html = '<img src="javascript:alert(1)" alt="x"/>'
+        result = sanitize_html(html)
+        assert "javascript:" not in result
+        assert 'alt="x"' in result
+
     def test_xmlns_attributes_removed(self):
         html = '<p xmlns:jcm-link-man="urn:x-jcm">Text</p>'
         result = sanitize_html(html)

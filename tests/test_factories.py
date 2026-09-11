@@ -68,6 +68,7 @@ class TestBuildAdapter:
     def _call(self, cfg, creds=DEPLOY_CREDS):
         session = MagicMock()
         mock_cred = MagicMock()
+        mock_cred.organization_id = cfg.org_id  # matches load_creds org check
         session.get = MagicMock(return_value=mock_cred)
         session.__enter__ = MagicMock(return_value=session)
         session.__exit__ = MagicMock(return_value=False)
@@ -119,6 +120,7 @@ class TestBuildConnector:
     def _call(self, cfg, creds=SF_CREDS):
         session = MagicMock()
         mock_cred = MagicMock()
+        mock_cred.organization_id = cfg.org_id  # matches load_creds org check
         session.get = MagicMock(return_value=mock_cred)
         session.__enter__ = MagicMock(return_value=session)
         session.__exit__ = MagicMock(return_value=False)
@@ -187,3 +189,17 @@ class TestBuildConnector:
             cfg = _make_cfg(connector_id=connector_id)
             with pytest.raises(ValueError, match="Unknown connector_id"):
                 self._call(cfg)
+
+    def test_cross_org_credential_raises_permission_error(self):
+        """Credential belonging to a different org must be rejected at execution time."""
+        cfg = _make_cfg(connector_id="salesforce", org_id="org-A")
+        session = MagicMock()
+        mock_cred = MagicMock()
+        mock_cred.organization_id = "org-B"   # different org
+        session.get = MagicMock(return_value=mock_cred)
+        session.__enter__ = MagicMock(return_value=session)
+        session.__exit__ = MagicMock(return_value=False)
+        sf = MagicMock(return_value=session)
+        with patch("syndication.factory.decrypt_credentials", return_value=SF_CREDS):
+            with pytest.raises(PermissionError):
+                build_connector(cfg, sf)

@@ -237,6 +237,24 @@ class TestDeployClient:
         assert data == png_bytes
         assert mime == "image/png"
 
+    async def test_fetch_binary_rejects_http_scheme(self, client: DeployClient):
+        with pytest.raises(ValueError, match="only HTTPS"):
+            await client.fetch_binary("http://169.254.169.254/latest/meta-data/")
+
+    async def test_fetch_binary_rejects_non_http_scheme(self, client: DeployClient):
+        for url in ("ftp://example.com/file", "file:///etc/passwd"):
+            with pytest.raises(ValueError, match="only HTTPS"):
+                await client.fetch_binary(url)
+
+    async def test_fetch_binary_enforces_size_cap(self, client: DeployClient):
+        big = b"x" * (51 * 1024 * 1024)  # 51 MB
+        with respx.mock() as mock:
+            mock.get("https://cdn.example.com/big.bin").mock(
+                return_value=httpx.Response(200, content=big)
+            )
+            with pytest.raises(ValueError, match="50 MB"):
+                await client.fetch_binary("https://cdn.example.com/big.bin")
+
     async def test_http_error_raises(self, client: DeployClient):
         with respx.mock(base_url=BASE_URL) as mock:
             mock.get(

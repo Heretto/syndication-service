@@ -13,7 +13,14 @@ References:
 """
 from __future__ import annotations
 
+import re
+
 from lxml import etree, html as lhtml
+
+# Strip href/src values that carry an explicit non-http(s) scheme.
+# Relative paths (no scheme), absolute paths (/foo), and http(s) URLs are
+# all safe.  javascript:, data:, vbscript:, blob:, etc. are not.
+_UNSAFE_SCHEME_RE = re.compile(r"^(?!https?:)([a-zA-Z][a-zA-Z0-9+.\-]*):", re.IGNORECASE)
 
 # Tags to keep (their children and text are preserved)
 ALLOWED_TAGS: frozenset[str] = frozenset([
@@ -82,6 +89,18 @@ def sanitize_html(html_str: str) -> str:
         for attr in list(elem.attrib):
             if attr not in allowed:
                 del elem.attrib[attr]
+
+    # 6. Strip href/src values whose scheme is not http(s).  Relative paths,
+    #    absolute paths, and http(s) URLs pass through; javascript:, data:,
+    #    vbscript:, blob:, and similar vectors are removed.
+    for elem in doc.iter("a"):
+        href = elem.get("href", "")
+        if href and _UNSAFE_SCHEME_RE.match(href):
+            del elem.attrib["href"]
+    for elem in doc.iter("img"):
+        src = elem.get("src", "")
+        if src and _UNSAFE_SCHEME_RE.match(src):
+            del elem.attrib["src"]
 
     # 6. Serialize the inner content of the sentinel <div>.
     inner = (doc.text or "") + "".join(

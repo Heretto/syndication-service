@@ -10,6 +10,10 @@ from urllib.parse import quote, urlparse
 
 import httpx
 
+# Maximum response body size for binary assets (50 MB).  Prevents memory
+# exhaustion from unexpectedly large responses or SSRF-amplification attacks.
+_MAX_BINARY_BYTES = 50 * 1024 * 1024
+
 
 class DeployClient:
     """Thin async wrapper around the Heretto Deploy API v4.
@@ -75,16 +79,34 @@ class DeployClient:
         return resp.json()
 
     async def fetch_binary(self, url: str) -> tuple[bytes, str]:
-        """Download an arbitrary URL and return ``(content_bytes, mime_type)``.
+        """Download a binary URL and return ``(content_bytes, mime_type)``.
 
-        Auth headers are only sent for on-domain requests (same host as
-        base_url) to prevent the Deploy API key from leaking to CDN domains.
+        Only HTTPS URLs are fetched.  HTTP is rejected to prevent requests to
+        cloud metadata endpoints (169.254.169.254) and unencrypted internal
+        services — both are HTTP-only in practice.  Auth headers are only sent
+        for on-domain requests (same host as base_url) to prevent the Deploy
+        API key from leaking to third-party CDN domains.  Response bodies are
+        capped at 50 MB to prevent memory exhaustion.
         """
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
+            raise ValueError(
+                f"fetch_binary: only HTTPS URLs are allowed, got scheme "
+                f"{parsed.scheme!r} in {url!r}"
+            )
+
         base_host = urlparse(self._base_url).netloc
-        url_host = urlparse(url).netloc
+        url_host = parsed.netloc
         headers = self._headers if url_host == base_host else {}
         async with httpx.AsyncClient(headers=headers) as http:
             resp = await http.get(url)
             resp.raise_for_status()
+
+        content = resp.content
+        if len(content) > _MAX_BINARY_BYTES:
+            raise ValueError(
+                f"fetch_binary: response from {url!r} exceeds "
+                f"{_MAX_BINARY_BYTES // (1024 * 1024)} MB limit"
+            )
         mime = resp.headers.get("Content-Type", "application/octet-stream").split(";")[0].strip()
-        return resp.content, mime
+        return content, mime

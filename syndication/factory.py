@@ -98,7 +98,7 @@ def build_adapter(cfg, session_factory) -> ISourceAdapter:
         ValueError: for unknown ``adapter_id`` or missing/invalid credential.
     """
     if cfg.adapter_id == "deploy":
-        creds = load_creds(cfg.credential_id, session_factory)
+        creds = load_creds(cfg.credential_id, session_factory, org_id=cfg.org_id)
         return DeployAdapter(
             org_id=cfg.org_id,
             deployment_id=cfg.deployment_id or "",
@@ -127,7 +127,7 @@ def build_connector(cfg, session_factory) -> ITargetConnector:
         return NoopConnector()
 
     if cfg.connector_id == "salesforce":
-        creds = load_creds(cfg.credential_id, session_factory)
+        creds = load_creds(cfg.credential_id, session_factory, org_id=cfg.org_id)
         return SalesforceConnector(
             instance_url=creds.get("instance_url", ""),
             api_version=creds.get("api_version", "65.0"),

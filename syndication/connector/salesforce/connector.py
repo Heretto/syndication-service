@@ -55,6 +55,10 @@ def _validate_sf_identifier(name: str, label: str) -> None:
         )
 
 
+_SF_INSTANCE_RE = re.compile(
+    r"^https://[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9\-]+)*\.salesforce\.com$"
+)
+
 _VALID_SOURCE_FIELDS = frozenset({
     "title", "short_description", "html_body",
     "content_type", "last_modified_iso", "section_path", "sort_order",
@@ -66,7 +70,11 @@ _UNIMPLEMENTED_SOURCE_FIELDS = frozenset({"breadcrumbs", "versions", "chunked_se
 # Salesforce enforces per-org API rate limits. When a 429 is returned, respect
 # the Retry-After header; fall back to this delay if the header is absent.
 _RATE_LIMIT_FALLBACK_WAIT_SECS = 60
+_RATE_LIMIT_MAX_WAIT_SECS = 300   # cap so one retry can't exhaust the sync timeout
 _RATE_LIMIT_MAX_RETRIES = 3
+
+# Per-request timeouts: connect quickly, allow up to 90s for large PATCH bodies.
+_REQUEST_TIMEOUT = httpx.Timeout(connect=10.0, read=90.0, write=60.0, pool=5.0)
 
 
 class SalesforceConnector(ITargetConnector):
@@ -99,7 +107,13 @@ class SalesforceConnector(ITargetConnector):
                 f"Invalid api_version {api_version!r}. "
                 "Must be in the form '<major>.<minor>' (e.g. '65.0')."
             )
-        self._instance_url = instance_url.rstrip("/")
+        instance_url = instance_url.rstrip("/")
+        if instance_url and not _SF_INSTANCE_RE.match(instance_url):
+            raise ValueError(
+                f"instance_url {instance_url!r} does not look like a Salesforce instance URL. "
+                "Expected format: https://<org>.my.salesforce.com"
+            )
+        self._instance_url = instance_url
         self._api_version = api_version
         self._static_token = access_token
         self._client_id = client_id
@@ -159,7 +173,7 @@ class SalesforceConnector(ITargetConnector):
         log.info("SF %s %s", method, url)
 
         for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
                 resp = await client.request(method, url, headers=headers, **kwargs)
 
             if resp.status_code == 401 and not self._static_token:
@@ -167,11 +181,17 @@ class SalesforceConnector(ITargetConnector):
                 self._cached_token = None
                 token = await self._ensure_token()
                 headers["Authorization"] = f"Bearer {token}"
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
                     resp = await client.request(method, url, headers=headers, **kwargs)
 
             if resp.status_code == 429 and attempt < _RATE_LIMIT_MAX_RETRIES:
-                wait = int(resp.headers.get("Retry-After", _RATE_LIMIT_FALLBACK_WAIT_SECS))
+                try:
+                    wait = min(
+                        int(resp.headers.get("Retry-After", _RATE_LIMIT_FALLBACK_WAIT_SECS)),
+                        _RATE_LIMIT_MAX_WAIT_SECS,
+                    )
+                except (ValueError, TypeError):
+                    wait = _RATE_LIMIT_FALLBACK_WAIT_SECS
                 log.warning(
                     "SF rate limited (attempt %d/%d). Retrying after %ds.",
                     attempt + 1, _RATE_LIMIT_MAX_RETRIES, wait,
