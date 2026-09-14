@@ -22,16 +22,6 @@ command -v docker &>/dev/null || die "docker not found — see https://docs.dock
 docker compose version &>/dev/null || die "docker compose v2 not available"
 docker info &>/dev/null || die "the Docker daemon is not running — start Docker and retry"
 
-# ── Ensure hop-core sibling exists (required for frontend Docker build) ────────
-# The frontend Dockerfile imports hop-core SCSS theme files via a relative path;
-# Docker needs hop-core/ as a sibling directory of syndication-service/ on disk.
-HOP_CORE_DIR="$(dirname "$PROJECT_DIR")/hop-core"
-if [ ! -d "$HOP_CORE_DIR" ]; then
-  info "hop-core not found at $HOP_CORE_DIR — cloning..."
-  git clone https://github.com/Heretto/hop-core.git "$HOP_CORE_DIR"
-  info "hop-core cloned."
-fi
-
 # ── Secret generation ─────────────────────────────────────────────────────────
 generate_secret() {
   if command -v openssl &>/dev/null; then
