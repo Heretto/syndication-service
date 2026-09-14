@@ -48,6 +48,14 @@ if [ -z "$admin_email" ]; then
   echo ""
 fi
 
+# ── Ensure hop-core sibling exists (required for frontend Docker build) ────────
+HOP_CORE_DIR="$(dirname "$ROOT")/hop-core"
+if [ ! -d "$HOP_CORE_DIR" ]; then
+  echo "hop-core not found at $HOP_CORE_DIR — cloning..."
+  git clone https://github.com/Heretto/hop-core.git "$HOP_CORE_DIR"
+  echo "hop-core cloned."
+fi
+
 # ── Launch ────────────────────────────────────────────────────────────────────
 cd "$ROOT"
 exec docker compose up --build "$@"
