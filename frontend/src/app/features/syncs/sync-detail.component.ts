@@ -6,6 +6,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { HopConfirmDialogComponent } from '@heretto/hop-ui';
 import { interval, Subscription } from 'rxjs';
@@ -20,7 +22,8 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
   selector: 'app-sync-detail',
   imports: [
     CommonModule, RouterModule, MatButtonModule, MatIconModule,
-    MatDialogModule, MatProgressSpinnerModule, MatTooltipModule,
+    MatDialogModule, MatProgressSpinnerModule, MatProgressBarModule,
+    MatTabsModule, MatTooltipModule,
     StatusBadgeComponent, CronDisplayComponent, LocalDatePipe,
   ],
   template: `
@@ -79,97 +82,123 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         </div>
       </div>
 
-      <!-- Detail content -->
-      <div class="detail-grid">
-        <!-- Config card -->
-        <section class="detail-card">
-          <h2 class="card-title">Configuration</h2>
-          <dl class="detail-list">
-            <div class="dl-row">
-              <dt>Sync ID</dt>
-              <dd class="mono">{{ sync.id }}</dd>
-            </div>
-            <div class="dl-row">
-              <dt>Organization</dt>
-              <dd>{{ sync.org_id }}</dd>
-            </div>
-            <div class="dl-row" *ngIf="sync.deployment_id">
-              <dt>Deployment ID</dt>
-              <dd class="mono">{{ sync.deployment_id }}</dd>
-            </div>
-            <div class="dl-row" *ngIf="sync.credential_id">
-              <dt>Credential ID</dt>
-              <dd class="mono">{{ sync.credential_id }}</dd>
-            </div>
-            <div class="dl-row">
-              <dt>Schedule</dt>
-              <dd>
-                <app-cron-display [expression]="sync.cron_expression"></app-cron-display>
-                <span class="cron-raw" *ngIf="sync.cron_expression">({{ sync.cron_expression }})</span>
-              </dd>
-            </div>
-            <div class="dl-row">
-              <dt>Publish Mode</dt>
-              <dd>{{ sync.publish_mode === 'draft' ? 'Save as draft' : 'Auto-publish' }}</dd>
-            </div>
-            <div class="dl-row" *ngIf="sync.high_water_mark">
-              <dt>Last Synced</dt>
-              <dd>{{ sync.high_water_mark | localDate:'MMM d, yyyy h:mm a' }}</dd>
-            </div>
-            <div class="dl-row" *ngIf="sync.created_at">
-              <dt>Created</dt>
-              <dd>{{ sync.created_at | localDate:'MMM d, yyyy' }}</dd>
-            </div>
-          </dl>
-        </section>
+      <!-- Tabs -->
+      <mat-tab-group class="detail-tabs" animationDuration="150ms">
 
-        <!-- Recent runs -->
-        <section class="detail-card">
-          <div class="card-header-row">
-            <h2 class="card-title">Recent Syncs</h2>
-            <span *ngIf="runsLoading" class="runs-loading">
-              <mat-spinner diameter="14"></mat-spinner>
+        <!-- Recent Syncs tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            Recent Syncs
+            <span *ngIf="runsLoading" class="tab-spinner">
+              <mat-spinner diameter="12"></mat-spinner>
             </span>
-          </div>
+          </ng-template>
+          <div class="tab-content">
+            <section class="detail-card">
+              <div *ngIf="!runsLoading && runs.length === 0" class="runs-empty">
+                <mat-icon>history</mat-icon>
+                <p>No syncs yet. Click "Sync Changes" to trigger the first sync.</p>
+              </div>
 
-          <div *ngIf="!runsLoading && runs.length === 0" class="runs-empty">
-            <mat-icon>history</mat-icon>
-            <p>No syncs yet. Click "Sync Changes" to trigger the first sync.</p>
-          </div>
+              <div class="run-list" *ngIf="runs.length > 0">
+                <div class="run-item" *ngFor="let r of runs">
+                  <div class="run-row">
+                    <app-status-badge [status]="r.status"></app-status-badge>
+                    <div class="run-info">
+                      <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
+                      <span *ngIf="r.completed_at" class="run-duration">
+                        Completed {{ r.completed_at | localDate:'h:mm a' }}
+                      </span>
+                    </div>
+                    <div class="run-stats" *ngIf="r.changed_count != null || r.removed_count != null">
+                      <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">
+                        {{ r.changed_count }} changed
+                      </span>
+                      <span *ngIf="r.removed_count" class="stat-badge stat-removed">
+                        {{ r.removed_count }} removed
+                      </span>
+                    </div>
+                  </div>
 
-          <div class="run-list" *ngIf="runs.length > 0">
-            <div class="run-item" *ngFor="let r of runs">
-              <div class="run-row">
-                <app-status-badge [status]="r.status"></app-status-badge>
-                <div class="run-info">
-                  <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
-                  <span *ngIf="r.completed_at" class="run-duration">
-                    Completed {{ r.completed_at | localDate:'h:mm a' }}
-                  </span>
-                </div>
-                <div class="run-stats" *ngIf="r.changed_count != null || r.removed_count != null">
-                  <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">
-                    {{ r.changed_count }} changed
-                  </span>
-                  <span *ngIf="r.removed_count" class="stat-badge stat-removed">
-                    {{ r.removed_count }} removed
-                  </span>
+                  <!-- Progress bar for running syncs -->
+                  <div class="run-progress" *ngIf="r.status === 'running'">
+                    <ng-container *ngIf="r.total_count != null && r.total_count > 0; else indeterminate">
+                      <mat-progress-bar
+                        mode="determinate"
+                        [value]="progressPercent(r)">
+                      </mat-progress-bar>
+                      <span class="progress-label">
+                        {{ r.processed_count ?? 0 }} of {{ r.total_count }} completed
+                      </span>
+                    </ng-container>
+                    <ng-template #indeterminate>
+                      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                      <span class="progress-label">Syncing…</span>
+                    </ng-template>
+                  </div>
+
+                  <div class="run-messages" *ngIf="r.error_message || (r.warning_messages && r.warning_messages.length)">
+                    <div class="run-msg run-msg-error" *ngIf="r.error_message">
+                      <mat-icon>error_outline</mat-icon>
+                      <span>{{ r.error_message }}</span>
+                    </div>
+                    <div class="run-msg run-msg-warning" *ngFor="let w of r.warning_messages">
+                      <mat-icon>warning_amber</mat-icon>
+                      <span>{{ w }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div class="run-messages" *ngIf="r.error_message || (r.warning_messages && r.warning_messages.length)">
-                <div class="run-msg run-msg-error" *ngIf="r.error_message">
-                  <mat-icon>error_outline</mat-icon>
-                  <span>{{ r.error_message }}</span>
-                </div>
-                <div class="run-msg run-msg-warning" *ngFor="let w of r.warning_messages">
-                  <mat-icon>warning_amber</mat-icon>
-                  <span>{{ w }}</span>
-                </div>
-              </div>
-            </div>
+            </section>
           </div>
-        </section>
-      </div>
+        </mat-tab>
+
+        <!-- Configuration tab -->
+        <mat-tab label="Configuration">
+          <div class="tab-content">
+            <section class="detail-card">
+              <dl class="detail-list">
+                <div class="dl-row">
+                  <dt>Sync ID</dt>
+                  <dd class="mono">{{ sync.id }}</dd>
+                </div>
+                <div class="dl-row">
+                  <dt>Organization</dt>
+                  <dd>{{ sync.org_id }}</dd>
+                </div>
+                <div class="dl-row" *ngIf="sync.deployment_id">
+                  <dt>Deployment ID</dt>
+                  <dd class="mono">{{ sync.deployment_id }}</dd>
+                </div>
+                <div class="dl-row" *ngIf="sync.credential_id">
+                  <dt>Credential ID</dt>
+                  <dd class="mono">{{ sync.credential_id }}</dd>
+                </div>
+                <div class="dl-row">
+                  <dt>Schedule</dt>
+                  <dd>
+                    <app-cron-display [expression]="sync.cron_expression"></app-cron-display>
+                    <span class="cron-raw" *ngIf="sync.cron_expression">({{ sync.cron_expression }})</span>
+                  </dd>
+                </div>
+                <div class="dl-row">
+                  <dt>Publish Mode</dt>
+                  <dd>{{ sync.publish_mode === 'draft' ? 'Save as draft' : 'Auto-publish' }}</dd>
+                </div>
+                <div class="dl-row" *ngIf="sync.high_water_mark">
+                  <dt>Last Synced</dt>
+                  <dd>{{ sync.high_water_mark | localDate:'MMM d, yyyy h:mm a' }}</dd>
+                </div>
+                <div class="dl-row" *ngIf="sync.created_at">
+                  <dt>Created</dt>
+                  <dd>{{ sync.created_at | localDate:'MMM d, yyyy' }}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </mat-tab>
+
+      </mat-tab-group>
     </ng-container>
 
     <div *ngIf="!loading && !sync" class="not-found">
@@ -204,13 +233,14 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
     .action-banner-btn:hover { border-color: rgba(255,255,255,0.5) !important; color: #fff !important; }
     .action-danger:hover { border-color: rgba(222,53,11,0.6) !important; color: #ff8a80 !important; }
 
-    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px 0; }
+    /* Tabs */
+    .detail-tabs { margin-top: 20px; }
+    ::ng-deep .detail-tabs .mat-mdc-tab-header { border-bottom: 1px solid #dee2ec; }
+    ::ng-deep .detail-tabs .mat-mdc-tab-body-wrapper { padding-top: 0; }
+    .tab-content { padding: 20px 0; }
+    .tab-spinner { display: inline-flex; margin-left: 8px; vertical-align: middle; }
 
     .detail-card { background: #fff; border: 1px solid #dee2ec; border-radius: 4px; overflow: hidden; }
-    .card-title { font-size: 13px; font-weight: 700; color: #1d1f2b; text-transform: uppercase; letter-spacing: 0.5px; margin: 0; padding: 14px 18px; border-bottom: 1px solid #f0f2f7; }
-    .card-header-row { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #f0f2f7; }
-    .card-header-row .card-title { padding: 0; border: none; }
-    .runs-loading { display: flex; }
 
     .detail-list { margin: 0; padding: 0; }
     .dl-row { display: flex; padding: 10px 18px; border-bottom: 1px solid #f8f9fb; }
@@ -235,6 +265,9 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
     .stat-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; }
     .stat-changed { background: rgba(0,82,204,0.1); color: #0052cc; }
     .stat-removed { background: rgba(222,53,11,0.1); color: #b22a09; }
+
+    .run-progress { padding: 0 18px 10px; }
+    .progress-label { display: block; font-size: 11px; color: #5e6e82; margin-top: 4px; }
 
     .run-messages { display: flex; flex-direction: column; gap: 2px; padding: 0 18px 10px 18px; }
     .run-msg { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; line-height: 1.5; }
@@ -270,6 +303,11 @@ export class SyncDetailComponent implements OnInit {
 
   get showDeactivationCallout(): boolean {
     return !this.sync?.is_active && this.runs.length > 0 && this.runs[0].status === 'failed';
+  }
+
+  progressPercent(run: SyncRun): number {
+    if (!run.total_count) return 0;
+    return Math.round(((run.processed_count ?? 0) / run.total_count) * 100);
   }
 
   constructor(

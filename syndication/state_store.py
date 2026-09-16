@@ -317,6 +317,15 @@ class SyncStateStore:
         finally:
             db.close()
 
+    def update_run_progress(self, run_id: str, processed: int, total: int) -> None:
+        """Update in-progress processed/total counters on a running run."""
+        def _update(db: Session) -> None:
+            db.query(SyncRun).filter(SyncRun.id == run_id).update(
+                {"processed_count": processed, "total_count": total}
+            )
+
+        self._with_session(_update)
+
     def complete_run(
         self,
         run_id: str,

@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from lxml import html as lhtml
@@ -105,6 +106,7 @@ class SyncPipeline:
         since: str | None,
         removed_target_ids: dict[str, str] | None = None,
         force_full: bool = False,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> PipelineResult:
         """Execute a complete sync run.
 
@@ -188,6 +190,11 @@ class SyncPipeline:
         field_map = {k: v for k, v in self._mapping.items() if k != "category_map"}
         html_body_field: str = field_map.get("html_body", "")
 
+        total_pages = len(ready_pages)
+        processed = 0
+        if progress_callback and total_pages:
+            progress_callback(0, total_pages)
+
         for page in ready_pages:
             try:
                 result = await self._connector.upsert_article(page, field_map)
@@ -202,6 +209,9 @@ class SyncPipeline:
                     )
                     log.warning(msg)
                     run_warnings.append(msg)
+                    processed += 1
+                    if progress_callback:
+                        progress_callback(processed, total_pages)
                     continue
                 raise
             run_warnings.extend(result.warnings)
@@ -225,6 +235,9 @@ class SyncPipeline:
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
             href_map[page.href] = result.target_article_id
+            processed += 1
+            if progress_callback:
+                progress_callback(processed, total_pages)
 
         # ── Stage 4.5: Deferred sibling relationship pass (force_full only) ──
         if structure_entries:

@@ -107,12 +107,16 @@ class SyncExecutorService:
                     sync_id, peek.removed_uuids
                 )
 
+            def _progress(processed: int, total: int) -> None:
+                self._store.update_run_progress(run_id, processed, total)
+
             timeout = getattr(self._settings, "sync_timeout_seconds", None)
             coro = pipeline.run(
                 run_id=run_id,
                 since=since,
                 removed_target_ids=removed_target_ids,
                 force_full=force_full,
+                progress_callback=_progress,
             )
             result = (
                 await asyncio.wait_for(coro, timeout=float(timeout))

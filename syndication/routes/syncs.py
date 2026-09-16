@@ -125,6 +125,8 @@ class SyncRunResponse(BaseModel):
     changed_count: int | None
     removed_count: int | None
     links_fixed: int | None
+    processed_count: int | None
+    total_count: int | None
     error_message: str | None
     warning_messages: list[str] | None
 
@@ -142,6 +144,8 @@ class SyncRunResponse(BaseModel):
             changed_count=getattr(run, "changed_count", None),
             removed_count=getattr(run, "removed_count", None),
             links_fixed=getattr(run, "links_fixed", None),
+            processed_count=getattr(run, "processed_count", None),
+            total_count=getattr(run, "total_count", None),
             error_message=getattr(run, "error_message", None),
             warning_messages=warnings,
         )

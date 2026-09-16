@@ -73,6 +73,8 @@ class SyncRun(Base):
     changed_count = Column(Integer, nullable=True)
     removed_count = Column(Integer, nullable=True)
     links_fixed = Column(Integer, nullable=True)
+    processed_count = Column(Integer, nullable=True)
+    total_count = Column(Integer, nullable=True)
     error_message = Column(Text, nullable=True)
     warning_messages = Column(Text, nullable=True)  # JSON-serialised list[str]
 

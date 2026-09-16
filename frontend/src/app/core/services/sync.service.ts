@@ -29,6 +29,8 @@ export interface SyncRun {
   changed_count: number | null;
   removed_count: number | null;
   links_fixed: number | null;
+  processed_count: number | null;
+  total_count: number | null;
   error_message: string | null;
   warning_messages: string[] | null;
 }
