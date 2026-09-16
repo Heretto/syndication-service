@@ -100,54 +100,71 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
                 <p>No syncs yet. Click "Sync Changes" to trigger the first sync.</p>
               </div>
 
-              <div class="run-list" *ngIf="runs.length > 0">
-                <div class="run-item" *ngFor="let r of runs">
-                  <div class="run-row">
-                    <app-status-badge [status]="r.status"></app-status-badge>
-                    <div class="run-info">
-                      <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
-                      <span *ngIf="r.completed_at" class="run-duration">
-                        Completed {{ r.completed_at | localDate:'h:mm a' }}
-                      </span>
-                    </div>
-                    <div class="run-stats" *ngIf="r.changed_count != null || r.removed_count != null">
-                      <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">
-                        {{ r.changed_count }} changed
-                      </span>
-                      <span *ngIf="r.removed_count" class="stat-badge stat-removed">
-                        {{ r.removed_count }} removed
-                      </span>
-                    </div>
-                  </div>
-
-                  <!-- Progress bar for running syncs -->
-                  <div class="run-progress" *ngIf="r.status === 'running'">
-                    <ng-container *ngIf="r.total_count != null && r.total_count > 0; else indeterminate">
-                      <mat-progress-bar
-                        mode="determinate"
-                        [value]="progressPercent(r)">
-                      </mat-progress-bar>
-                      <span class="progress-label">
-                        {{ r.processed_count ?? 0 }} of {{ r.total_count }} completed
-                      </span>
+              <div class="runs-table-wrap" *ngIf="runs.length > 0">
+                <table class="runs-table">
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Started</th>
+                      <th>Duration</th>
+                      <th class="num-col">Changed</th>
+                      <th class="num-col">Removed</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <ng-container *ngFor="let r of runs">
+                      <!-- Main data row -->
+                      <tr [class.row-running]="r.status === 'running'">
+                        <td><app-status-badge [status]="r.status"></app-status-badge></td>
+                        <td class="cell-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</td>
+                        <td class="cell-duration">
+                          <span *ngIf="r.completed_at">{{ duration(r) }}</span>
+                          <span *ngIf="!r.completed_at" class="in-progress-text">In progress</span>
+                        </td>
+                        <td class="num-col">
+                          <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">{{ r.changed_count }}</span>
+                          <span *ngIf="r.changed_count == null" class="cell-empty">—</span>
+                        </td>
+                        <td class="num-col">
+                          <span *ngIf="r.removed_count != null && r.removed_count > 0" class="stat-badge stat-removed">{{ r.removed_count }}</span>
+                          <span *ngIf="!r.removed_count" class="cell-empty">—</span>
+                        </td>
+                        <td class="cell-notes">
+                          <ng-container *ngIf="r.error_message || r.warning_messages?.length; else noNotes">
+                            <div *ngIf="r.error_message" class="note-inline note-error">
+                              <mat-icon>error_outline</mat-icon>
+                              <span class="note-text" [class.note-clamped]="!expandedNotes.has(r.id)">{{ r.error_message }}</span>
+                            </div>
+                            <div *ngFor="let w of r.warning_messages" class="note-inline note-warning">
+                              <mat-icon>warning_amber</mat-icon>
+                              <span class="note-text" [class.note-clamped]="!expandedNotes.has(r.id)">{{ w }}</span>
+                            </div>
+                            <button class="note-toggle" (click)="toggleNote(r.id)">
+                              {{ expandedNotes.has(r.id) ? 'Show less' : 'Show more' }}
+                            </button>
+                          </ng-container>
+                          <ng-template #noNotes>
+                            <span class="cell-empty">—</span>
+                          </ng-template>
+                        </td>
+                      </tr>
+                      <!-- Progress row (running only) -->
+                      <tr *ngIf="r.status === 'running'" class="row-progress">
+                        <td colspan="6" class="progress-cell">
+                          <ng-container *ngIf="r.total_count != null && r.total_count > 0; else indeterminate">
+                            <mat-progress-bar mode="determinate" [value]="progressPercent(r)"></mat-progress-bar>
+                            <span class="progress-label">{{ r.processed_count ?? 0 }} of {{ r.total_count }} completed</span>
+                          </ng-container>
+                          <ng-template #indeterminate>
+                            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                            <span class="progress-label">Syncing…</span>
+                          </ng-template>
+                        </td>
+                      </tr>
                     </ng-container>
-                    <ng-template #indeterminate>
-                      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-                      <span class="progress-label">Syncing…</span>
-                    </ng-template>
-                  </div>
-
-                  <div class="run-messages" *ngIf="r.error_message || (r.warning_messages && r.warning_messages.length)">
-                    <div class="run-msg run-msg-error" *ngIf="r.error_message">
-                      <mat-icon>error_outline</mat-icon>
-                      <span>{{ r.error_message }}</span>
-                    </div>
-                    <div class="run-msg run-msg-warning" *ngFor="let w of r.warning_messages">
-                      <mat-icon>warning_amber</mat-icon>
-                      <span>{{ w }}</span>
-                    </div>
-                  </div>
-                </div>
+                  </tbody>
+                </table>
               </div>
             </section>
           </div>
@@ -254,28 +271,45 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
     .runs-empty mat-icon { font-size: 36px; width: 36px; height: 36px; margin-bottom: 12px; }
     .runs-empty p { font-size: 13px; margin: 0; }
 
-    .run-list { display: flex; flex-direction: column; }
-    .run-item { border-bottom: 1px solid #f0f2f7; }
-    .run-item:last-child { border-bottom: none; }
-    .run-row { display: flex; align-items: center; gap: 10px; padding: 10px 18px; }
-    .run-info { flex: 1; display: flex; flex-direction: column; }
-    .run-time { font-size: 12px; font-weight: 600; color: #1d1f2b; }
-    .run-duration { font-size: 11px; color: #5e6e82; }
-    .run-stats { display: flex; gap: 5px; flex-shrink: 0; }
-    .stat-badge { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; }
+    /* Runs table */
+    .runs-table-wrap { overflow-x: auto; }
+    .runs-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .runs-table thead tr { background: #f8f9fb; }
+    .runs-table th { font-size: 11px; font-weight: 700; color: #5e6e82; text-transform: uppercase; letter-spacing: 0.4px; padding: 8px 14px; text-align: left; border-bottom: 1px solid #dee2ec; white-space: nowrap; }
+    .runs-table td { padding: 9px 14px; border-bottom: 1px solid #f0f2f7; vertical-align: middle; color: #1d1f2b; }
+    .runs-table tbody tr:last-child td { border-bottom: none; }
+    .runs-table tbody tr.row-running { background: #f5fbff; }
+    .runs-table th.num-col,
+    .runs-table td.num-col { text-align: center; }
+    .cell-time { white-space: nowrap; font-size: 12px; }
+    .cell-duration { white-space: nowrap; font-size: 12px; color: #5e6e82; }
+    .in-progress-text { font-size: 11px; font-style: italic; color: #0052cc; }
+    .cell-empty { color: #bdc5d1; }
+    .cell-notes { max-width: 220px; }
+
+    .stat-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 3px; }
     .stat-changed { background: rgba(0,82,204,0.1); color: #0052cc; }
     .stat-removed { background: rgba(222,53,11,0.1); color: #b22a09; }
 
-    .run-progress { padding: 0 18px 10px; }
-    .progress-label { display: block; font-size: 11px; color: #5e6e82; margin-top: 4px; }
+    .note-inline { display: flex; align-items: flex-start; gap: 5px; margin-bottom: 4px; }
+    .note-inline mat-icon { font-size: 13px; width: 13px; height: 13px; flex-shrink: 0; margin-top: 1px; }
+    .note-text { font-size: 11.5px; line-height: 1.45; }
+    .note-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+    .note-toggle {
+      background: none; border: none; padding: 2px 0 0; cursor: pointer;
+      font-size: 11px; color: #0052cc; text-decoration: underline;
+      display: block; margin-top: 2px; margin-left: 18px;
+    }
+    .note-toggle:hover { color: #0039a6; }
+    .note-warning { color: #7c4000; }
+    .note-warning mat-icon { color: #e65100; }
+    .note-error { color: #b22a09; }
+    .note-error mat-icon { color: #de350b; }
 
-    .run-messages { display: flex; flex-direction: column; gap: 2px; padding: 0 18px 10px 18px; }
-    .run-msg { display: flex; align-items: flex-start; gap: 6px; font-size: 11.5px; line-height: 1.5; }
-    .run-msg mat-icon { font-size: 14px; width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; }
-    .run-msg-error { color: #b22a09; }
-    .run-msg-error mat-icon { color: #de350b; }
-    .run-msg-warning { color: #7c4000; }
-    .run-msg-warning mat-icon { color: #e65100; }
+    /* Progress sub-row */
+    .row-progress td { padding: 0 14px 10px; border-bottom: none; }
+    .progress-cell { padding: 0 14px 10px !important; }
+    .progress-label { display: block; font-size: 11px; color: #5e6e82; margin-top: 4px; }
 
     .load-error { display: flex; align-items: center; gap: 10px; padding: 20px 24px; color: #b22a09; font-size: 13px; }
     .load-error mat-icon { color: #de350b; }
@@ -300,14 +334,33 @@ export class SyncDetailComponent implements OnInit {
   loading = true;
   loadError = false;
   runsLoading = false;
+  expandedNotes = new Set<string>();
 
   get showDeactivationCallout(): boolean {
     return !this.sync?.is_active && this.runs.length > 0 && this.runs[0].status === 'failed';
   }
 
+  toggleNote(runId: string): void {
+    if (this.expandedNotes.has(runId)) {
+      this.expandedNotes.delete(runId);
+    } else {
+      this.expandedNotes.add(runId);
+    }
+  }
+
   progressPercent(run: SyncRun): number {
     if (!run.total_count) return 0;
     return Math.round(((run.processed_count ?? 0) / run.total_count) * 100);
+  }
+
+  duration(run: SyncRun): string {
+    if (!run.started_at || !run.completed_at) return '';
+    const ms = new Date(run.completed_at).getTime() - new Date(run.started_at).getTime();
+    const secs = Math.round(ms / 1000);
+    if (secs < 60) return `${secs}s`;
+    const mins = Math.floor(secs / 60);
+    const rem = secs % 60;
+    return rem > 0 ? `${mins}m ${rem}s` : `${mins}m`;
   }
 
   constructor(
