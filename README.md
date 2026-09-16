@@ -38,7 +38,8 @@ This starts the backend on `http://localhost:8000` and the frontend on `http://l
 - **Field mapping** — map any Deploy/IR field to any writable Salesforce Knowledge field
 - **Data category mapping** — map Heretto taxonomy groups to Salesforce Knowledge data category groups for article visibility control
 - **Scheduled and on-demand** — any standard cron expression, plus manual trigger from the UI or API
-- **Run warnings** — if an article can't be archived or deleted, the sync still succeeds and records a warning for follow-up
+- **Live progress tracking** — running syncs show a real-time progress bar ("x of y completed") in the UI
+- **Run warnings** — non-fatal issues (failed archives, Salesforce article limit hits) are grouped into a single summary warning so the sync completes and the UI stays readable
 - **Credential management** — Salesforce credentials stored encrypted; supports OAuth 2.0 Client Credentials Flow (auto-refresh) or static access token
 
 ---
@@ -236,7 +237,7 @@ The web UI (Angular, port `4200` in development) provides:
 - **Create / Edit sync** — configure adapter, connector, credentials, cron schedule, publish mode, field mapping, and data category mapping
 - **Sync Changes** — trigger an incremental run immediately
 - **Full Resync** — trigger a structure-walk run that fetches every topic, bypassing the change cursor, and archives stale articles
-- **Sync History** — per-run status, timestamps in the viewer's local timezone, article counts, warning messages, and error messages
+- **Sync detail** — tabbed view (Recent Syncs | Configuration); running syncs show a live progress bar ("x of y completed"); completed runs display status, duration, article counts, and any warnings or errors in a table
 - **Delete sync** — removes the sync and unregisters its schedule
 
 The UI includes two administration pages provided by the hop-core platform layer:
