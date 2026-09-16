@@ -192,6 +192,7 @@ class SyncPipeline:
 
         total_pages = len(ready_pages)
         processed = 0
+        storage_limit_skipped: list[str] = []  # titles of articles skipped due to org limit
         if progress_callback and total_pages:
             progress_callback(0, total_pages)
 
@@ -201,14 +202,8 @@ class SyncPipeline:
             except Exception as exc:
                 exc_str = str(exc)
                 if "STORAGE_LIMIT_EXCEEDED" in exc_str:
-                    msg = (
-                        f"Article {page.uuid!r} ({page.title!r}) skipped: "
-                        f"Salesforce article limit exceeded. "
-                        f"Increase your org's Knowledge article limit or archive unused articles, "
-                        f"then re-run the sync to create the skipped articles."
-                    )
-                    log.warning(msg)
-                    run_warnings.append(msg)
+                    log.warning("Article %r (%r) skipped: Salesforce article limit exceeded.", page.uuid, page.title)
+                    storage_limit_skipped.append(page.title or page.uuid)
                     processed += 1
                     if progress_callback:
                         progress_callback(processed, total_pages)
@@ -238,6 +233,17 @@ class SyncPipeline:
             processed += 1
             if progress_callback:
                 progress_callback(processed, total_pages)
+
+        # Emit one consolidated warning for all storage-limit skips.
+        if storage_limit_skipped:
+            n = len(storage_limit_skipped)
+            titles = ", ".join(storage_limit_skipped)
+            run_warnings.append(
+                f"{n} article{'s' if n != 1 else ''} skipped — Salesforce article limit exceeded: "
+                f"{titles}. "
+                f"Increase your org's Knowledge article limit or archive unused articles, "
+                f"then re-run the sync to create the skipped articles."
+            )
 
         # ── Stage 4.5: Deferred sibling relationship pass (force_full only) ──
         if structure_entries:
