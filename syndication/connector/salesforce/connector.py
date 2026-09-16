@@ -590,17 +590,45 @@ class SalesforceConnector(ITargetConnector):
             resp = await self._request(
                 "GET",
                 f"{base}/sobjects/{self._kav_type}/{article_id}",
-                params={"fields": html_body_field},
+                params={"fields": f"PublishStatus,{html_body_field}"},
             )
             body = resp.json()
             current = body.get(html_body_field, "") or ""
             rewritten = await self.rewrite_links(current, url_map)
-            if rewritten != current:
-                await self._request(
-                    "PATCH",
-                    f"{base}/sobjects/{self._kav_type}/{article_id}",
-                    json={html_body_field: rewritten},
-                )
-                count += 1
+            if rewritten == current:
+                continue
+
+            publish_status = body.get("PublishStatus", "Draft")
+            patch_id = article_id
+            was_online = publish_status == "Online"
+
+            if was_online:
+                # Salesforce rejects PATCH on Online articles — create an edit
+                # draft first, patch it, then re-publish.
+                try:
+                    edit_resp = await self._request(
+                        "POST",
+                        f"{base}/knowledgeManagement/articleVersions",
+                        json={"masterVersionId": article_id},
+                    )
+                    patch_id = edit_resp.json()["id"]
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code == 405:
+                        log.warning(
+                            "Cannot create edit draft for link fixup on article %s "
+                            "(API limitation — links not rewritten this run)",
+                            article_id,
+                        )
+                        continue
+                    raise
+
+            await self._request(
+                "PATCH",
+                f"{base}/sobjects/{self._kav_type}/{patch_id}",
+                json={html_body_field: rewritten},
+            )
+            if was_online:
+                await self.publish_article(patch_id, was_online=True)
+            count += 1
 
         return count
