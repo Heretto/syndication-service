@@ -62,15 +62,6 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Check out hop-core (sibling path, matches local dev structure)
-        run: git clone --depth 1 https://github.com/Heretto/hop-core.git ../hop-core
-
-      - name: Build hop-ui
-        working-directory: ../hop-core/ui
-        run: |
-          npm install --no-fund --no-audit
-          npm run build
-
       - name: Install frontend dependencies
         run: npm install --no-fund --no-audit
         working-directory: frontend

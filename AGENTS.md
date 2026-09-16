@@ -55,10 +55,9 @@ account automatically on startup.
 
 **Non-obvious things:**
 
-- The backend Docker build is self-contained (uses `requirements.txt`; no
-  sibling directory needed). The frontend Docker build still requires `hop-core/`
-  as a sibling directory for its SCSS theme imports — `docker-compose.yml` sets
-  `context: ../` for the frontend service for this reason.
+- Both the backend and frontend Docker builds are fully self-contained. The
+  frontend installs `@heretto/hop-ui` from the npm tarball declared in
+  `package.json`; no `hop-core/` sibling directory is required for Docker.
 - SQLite is the default (`DATABASE_URL=sqlite:///./syndication.db`). Use
   PostgreSQL in production (`DATABASE_URL=postgresql+psycopg2://...`).
 - Collection API routes require a trailing slash: `/api/v1/syncs/` not

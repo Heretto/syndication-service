@@ -355,7 +355,7 @@ pytest tests/
 
 ### Docker Compose
 
-Run from within `syndication-service/`. The frontend build still requires `hop-core/` as a sibling directory for SCSS imports; clone it if it isn't present already.
+Run from within `syndication-service/`. Both backend and frontend Docker builds are self-contained — no sibling repositories required.
 
 **Option A — auto-create admin at startup (recommended for first install)**
 
