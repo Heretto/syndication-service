@@ -189,7 +189,21 @@ class SyncPipeline:
         html_body_field: str = field_map.get("html_body", "")
 
         for page in ready_pages:
-            result = await self._connector.upsert_article(page, field_map)
+            try:
+                result = await self._connector.upsert_article(page, field_map)
+            except Exception as exc:
+                exc_str = str(exc)
+                if "STORAGE_LIMIT_EXCEEDED" in exc_str:
+                    msg = (
+                        f"Article {page.uuid!r} ({page.title!r}) skipped: "
+                        f"Salesforce article limit exceeded. "
+                        f"Increase your org's Knowledge article limit or archive unused articles, "
+                        f"then re-run the sync to create the skipped articles."
+                    )
+                    log.warning(msg)
+                    run_warnings.append(msg)
+                    continue
+                raise
             run_warnings.extend(result.warnings)
             # Always sync categories — they are independent of the draft/publish
             # cycle and can be applied to Published articles directly.
