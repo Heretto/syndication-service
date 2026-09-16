@@ -4,6 +4,32 @@ A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge o
 
 ---
 
+## Install
+
+Clone the project:
+
+```bash
+git clone https://github.com/Heretto/syndication-service.git
+cd syndication-service
+./install.sh
+```
+
+`install.sh` installs Python and npm dependencies, generates required secrets, runs database migrations, and creates the first admin account.
+
+---
+
+## Usage
+
+Run locally using a simple shell script:
+
+```bash
+./dev.sh
+```
+
+This starts the backend on `http://localhost:8000` and the frontend on `http://localhost:4200`. Press `Ctrl+C` to stop both.
+
+---
+
 ## Features
 
 - **Incremental and full syncs** — incremental runs use a high-water-mark cursor so only changed content is processed; full resyncs walk the entire deployment structure
@@ -17,46 +43,12 @@ A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge o
 
 ---
 
-## Quick Start
+## First Sync
 
-### Prerequisites
-
-- Python 3.11+, Node.js 24+
-
-### 1 — Install dependencies
-
-```bash
-cd syndication-service
-pip install -r requirements.txt
-pip install -e ".[dev]"
-cd frontend && npm install && cd ..
-```
-
-### 2 — Configure and seed
-
-```bash
-cp .env.example .env
-# Edit .env — set ENCRYPTION_KEY, APP_SECRET_KEY, JWT_SECRET_KEY
-# (see Running Locally below for generation commands)
-
-alembic upgrade head
-python scripts/seed.py   # creates the first admin account
-```
-
-### 3 — Start
-
-```bash
-# Terminal 1 — backend
-uvicorn syndication.main:app --reload --port 8000
-
-# Terminal 2 — frontend
-cd frontend && npm start   # http://localhost:4200
-```
-
-### 4 — Connect Salesforce and create your first sync
+After running `./dev.sh`:
 
 1. Log in and go to **Credentials → New credential**. Enter your Salesforce instance URL, API version, Knowledge type, external ID field, and either OAuth client credentials or a static access token.
-2. Go to **Syncs → New Sync**. Enter the Heretto deployment ID, select the credential you just created, configure a schedule or leave it as manual, and map at least one source field (e.g. `title → Title`).
+2. Go to **Syncs → New Sync**. Enter the Heretto deployment ID, select the credential, configure a schedule or leave it as manual, and map at least one source field (e.g. `title → Title`).
 3. Click **Full Resync** to push all current content from the deployment to Salesforce Knowledge.
 
 ---
@@ -277,77 +269,11 @@ All routes are mounted under `/api/v1` and require a valid JWT. Routes are org-s
 
 ## Running Locally
 
-### Prerequisites
+Run `./install.sh` once (first-time setup), then `./dev.sh` to start the servers. See the **Install** and **Usage** sections at the top.
 
-- Python 3.11+
-- Node.js 24+
+**Requirements:** Python 3.11+, Node.js 20+
 
-### 1 — Install Python dependencies
-
-```bash
-cd syndication-service
-pip install -r requirements.txt   # installs hop-core 0.1.3 and all other deps
-pip install -e ".[dev]"
-```
-
-### 2 — Build hop-ui (required for the frontend)
-
-The Angular frontend imports its component library from hop-core. Clone hop-core as a sibling directory and build the UI package before starting the frontend dev server:
-
-```bash
-git clone https://github.com/Heretto/hop-core.git   # sibling of syndication-service/
-cd hop-core/ui && npm install && npm run build && cd -
-```
-
-> The sibling directory is only needed for the **frontend dev server**. The backend and Docker build do not require it.
-
-### 3 — Configure environment
-
-```bash
-cd syndication-service
-cp .env.example .env
-```
-
-Open `.env` and set the three required keys before continuing:
-
-| Variable | How to generate |
-|----------|-----------------|
-| `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `APP_SECRET_KEY` | Any random string ≥ 32 characters |
-| `JWT_SECRET_KEY` | Any random string ≥ 32 characters |
-
-All other values in `.env` have working defaults for local development.
-
-### 4 — Run the backend
-
-```bash
-# From syndication-service/
-pip install -e ".[dev]"
-
-# Database migrations (SQLite by default — dev only)
-# Set DATABASE_URL=postgresql+psycopg2://... for production
-alembic upgrade head
-
-uvicorn syndication.main:app --reload --port 8000
-```
-
-### 5 — Create the first admin account
-
-```bash
-python scripts/seed.py
-```
-
-You will be prompted for an email address and password. The password must be at least 12 characters and include an uppercase letter, a digit, and a special character. The script is idempotent — it does nothing if an admin account already exists.
-
-### 6 — Run the frontend (separate terminal)
-
-```bash
-cd syndication-service/frontend
-npm install
-npm start          # http://localhost:4200, proxies /api → :8000
-```
-
-### 7 — Run the tests
+### Run the tests
 
 ```bash
 pytest tests/
