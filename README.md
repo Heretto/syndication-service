@@ -1,6 +1,15 @@
 # Syndication Service
 
-A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge on a schedule or on demand.
+A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge on a schedule or on demand. If your team authors content in Heretto and delivers it through Salesforce Knowledge, this service automates that handoff — keeping your knowledge base current without manual export or copy-paste.
+
+---
+
+## Prerequisites
+
+- Python 3.11+
+- Node.js 20+
+- A Heretto Deploy API key and deployment ID
+- A Salesforce org with Knowledge enabled
 
 ---
 
@@ -15,6 +24,8 @@ cd syndication-service
 ```
 
 `install.sh` installs Python and npm dependencies, generates required secrets, runs database migrations, and creates the first admin account.
+
+To adjust any defaults (database URL, SMTP, admin email, etc.), open `.env` — it is created from `.env.example` during install with all available options documented inline.
 
 ---
 
@@ -46,9 +57,14 @@ This starts the backend on `http://localhost:8000` and the frontend on `http://l
 
 ## First Sync
 
+**Before you start — Salesforce setup required:**
+
+- Create a custom text field on your Knowledge object to store the Heretto article UUID (e.g. `Heretto_UUID__c`). This is the idempotency key the service uses to identify articles across syncs.
+- For OAuth authentication (recommended): create a Salesforce External Client App with Client Credentials Flow enabled and assign a Run As user. For a static token, a valid Salesforce access token is sufficient.
+
 After running `./dev.sh`:
 
-1. Log in and go to **Credentials → New credential**. Enter your Salesforce instance URL, API version, Knowledge type, external ID field, and either OAuth client credentials or a static access token.
+1. Log in and go to **Credentials → New credential**. Enter your Salesforce instance URL, API version, Knowledge object API name (e.g. `Knowledge__kav`), the external ID field you created above, and either your OAuth client credentials or a static access token.
 2. Go to **Syncs → New Sync**. Enter the Heretto deployment ID, select the credential, configure a schedule or leave it as manual, and map at least one source field (e.g. `title → Title`).
 3. Click **Full Resync** to push all current content from the deployment to Salesforce Knowledge.
 
@@ -270,17 +286,13 @@ All routes are mounted under `/api/v1` and require a valid JWT. Routes are org-s
 
 ## Running Locally
 
-Run `./install.sh` once (first-time setup), then `./dev.sh` to start the servers. See the **Install** and **Usage** sections at the top.
-
-**Requirements:** Python 3.11+, Node.js 20+
-
 ### Run the tests
 
 ```bash
 pytest tests/
 ```
 
-### Docker Compose
+## Docker
 
 Run from within `syndication-service/`. Both backend and frontend Docker builds are self-contained — no sibling repositories required.
 
