@@ -1,6 +1,6 @@
 # Syndication Service
 
-A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge on a schedule or on demand. If your team authors content in Heretto and delivers it through Salesforce Knowledge, this service automates that handoff — keeping your knowledge base current without manual export or copy-paste.
+A pipeline that syncs DITA content from Heretto Deploy to Salesforce Knowledge on a schedule or on demand. If your team authors content in Heretto and needs to deliver it through Salesforce Knowledge, this service automates that handoff, keeping your knowledge base current without manual export or copy-paste.
 
 ---
 
@@ -43,14 +43,14 @@ This starts the backend on `http://localhost:8000` and the frontend on `http://l
 
 ## Features
 
-- **Incremental and full syncs** — incremental runs use a high-water-mark cursor so only changed content is processed; full resyncs walk the entire deployment structure
+- **Incremental and full syncs** — incremental runs use a high-water-mark cursor so only changed content since the last sync is processed; full resyncs walk the entire deployment structure
 - **Removed content handling** — full resyncs detect articles whose source topic no longer exists and automatically archive (Online) or delete (Draft) them in Salesforce Knowledge
 - **Publish modes** — auto-publish articles to Online on sync, or leave them as Drafts for manual review
-- **Field mapping** — map any Deploy/IR field to any writable Salesforce Knowledge field
-- **Data category mapping** — map Heretto taxonomy groups to Salesforce Knowledge data category groups for article visibility control
-- **Scheduled and on-demand** — any standard cron expression, plus manual trigger from the UI or API
+- **Field mapping** — map Heretto content areas (short description, content body, etc.) to any writable Salesforce Knowledge fields that are configured
+- **Data category mapping** — map Heretto taxonomy structures to Salesforce Knowledge data category groups for article visibility control or article metadata
+- **Scheduled and on-demand** — any standard cron expression, plus manual trigger from the UI
 - **Live progress tracking** — running syncs show a real-time progress bar ("x of y completed") in the UI
-- **Run warnings** — non-fatal issues (failed archives, Salesforce article limit hits) are grouped into a single summary warning so the sync completes and the UI stays readable
+- **Run warnings** — non-fatal issues (failed archives, Salesforce article limit hits) are grouped into a single summary warning
 - **Credential management** — Salesforce credentials stored encrypted; supports OAuth 2.0 Client Credentials Flow (auto-refresh) or static access token
 
 ---
@@ -104,7 +104,7 @@ Each sync run executes the following stages:
 
 ### Incremental Sync
 
-Uses the Deploy `/changed_content` endpoint with a **high-water-mark cursor**. Only articles with a `contentModificationDate` newer than the last successful run are fetched. The cursor advances after each successful run.
+Uses the Deploy `/changed_content` endpoint with a **high-water-mark cursor**. Only articles with a `contentModificationDate` newer than the last successful sync are fetched. The cursor advances after each successful sync.
 
 ### Force Full Resync
 
@@ -116,7 +116,7 @@ A force full resync also performs **stale article detection**: after processing,
 - **Draft articles** — deleted directly via the REST API.
 - **Failures** — if archiving or deletion fails, a warning is recorded in the run record. The sync still completes with `success` status; warnings indicate items requiring manual follow-up in Salesforce.
 
-> The pipeline is stateless. The executor layer is responsible for persisting the cursor, article mappings, and run records between runs.
+> The pipeline is stateless. The executor layer is responsible for persisting the cursor, article mappings, and run records between syncs.
 
 ---
 
@@ -137,7 +137,7 @@ Reads from the **Heretto Deploy API v4** and maps each content item into an `IRP
 |-------|-------------|
 | `api_key` | Deploy API key (sent as `X-Deploy-API-Auth`) |
 | `base_url` | Deploy base URL, e.g. `https://myorg.deploy.heretto.com` |
-| `audience` | Preferred audience for deduplication (default: `private`) |
+| `audience` | Preferred audience for deduplication. When set, articles matching this audience are preferred when the Deploy API returns duplicates across audience groups. Leave blank to receive all content regardless of audience.
 
 ---
 
@@ -186,7 +186,7 @@ A pass-through connector for testing. Accepts all articles without writing anywh
 
 ### Field Mapping
 
-Maps Deploy IR fields to target system fields. Keys are source field names; values are the target field API names.
+Maps Deploy fields to target system fields. Keys are source field names; values are the target field API names.
 
 ```json
 {
@@ -198,7 +198,7 @@ Maps Deploy IR fields to target system fields. Keys are source field names; valu
 
 **Available source fields:**
 
-| IR field | Deploy source | Notes |
+| Deploy field | Deploy source | Notes |
 |----------|---------------|-------|
 | `title` | top-level `title` | |
 | `short_description` | `shortDescription` | |
@@ -211,7 +211,7 @@ Maps Deploy IR fields to target system fields. Keys are source field names; valu
 
 ### Data Category Mapping (Salesforce only)
 
-Maps Deploy taxonomy group names to SF data category group API names. Stored as `category_map` within the mapping JSON.
+Maps Deploy taxonomy names to SF data category group API names. Stored as `category_map` within the mapping JSON.
 
 ```json
 {
@@ -294,7 +294,7 @@ pytest tests/
 
 ## Docker
 
-Run from within `syndication-service/`. Both backend and frontend Docker builds are self-contained — no sibling repositories required.
+Run from within `syndication-service/`. Both backend and frontend Docker builds are self-contained with no sibling repositories required.
 
 **Option A — auto-create admin at startup (recommended for first install)**
 
@@ -319,7 +319,7 @@ docker compose up --build
 docker compose exec backend python scripts/seed.py
 ```
 
-> Credentials are stored encrypted using hop-core's Fernet layer. The `ENCRYPTION_KEY` must be a valid Fernet key (32 url-safe base64-encoded bytes) — any other value causes an immediate startup crash.
+> Credentials are stored encrypted using hop-core's Fernet layer. The `ENCRYPTION_KEY` must be a valid Fernet key (32 url-safe base64-encoded bytes). Any other value causes an immediate startup crash.
 
 ---
 
@@ -337,13 +337,13 @@ python scripts/seed.py
 docker compose exec backend python scripts/seed.py
 ```
 
-Alternatively, set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` and restart — the account will be created automatically on next startup.
+Alternatively, set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` and restart. The account will be created automatically on next startup.
 
 ---
 
 **Registration fails with "default organization not found"**
 
-This means `SINGLE_ORG_MODE=true` but the organization row is missing. Restart the backend — it creates the default organization automatically on startup.
+This means `SINGLE_ORG_MODE=true` but the organization row is missing. Restart the backend. It creates the default organization automatically on startup.
 
 ---
 
