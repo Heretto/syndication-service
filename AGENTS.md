@@ -1,6 +1,6 @@
 # Syndication Service — agent notes
 
-Built on [hop-core](https://github.com/Heretto/hop-core), pinned at v0.1.9.
+Built on [hop-core](https://github.com/Heretto/hop-core), pinned at v0.1.14.
 
 ## Before changing anything
 
