@@ -77,9 +77,12 @@ class SyncExecutorService:
             log.debug("Sync %s not found or inactive, skipping.", sync_id)
             return
 
-        self._running.add(sync_id)
         run_id = str(uuid.uuid4())
         self._store.create_run(sync_id=sync_id, run_id=run_id)
+        # Mark running only once the run record exists: if create_run raises, there
+        # is no finally below to clear the flag. No await between here and the guard,
+        # so the concurrent-run check still holds.
+        self._running.add(sync_id)
 
         try:
             mapping = json.loads(cfg.mapping_json or "{}")

@@ -1,16 +1,17 @@
-import { Component, Input } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
   selector: 'app-status-badge',
-  imports: [CommonModule, MatIconModule],
+  imports: [MatIconModule],
   template: `
     <span class="badge" [class]="'badge-' + normalizedStatus">
       <mat-icon aria-hidden="true">{{ icon }}</mat-icon>
       {{ label }}
     </span>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .badge {
       display: inline-flex;

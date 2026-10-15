@@ -1,11 +1,11 @@
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
+
 import { MatIconModule } from '@angular/material/icon';
 import { HopAdminComponent } from '@heretto/hop-ui';
 
 @Component({
   selector: 'app-superadmin',
-  imports: [CommonModule, MatIconModule, HopAdminComponent],
+  imports: [MatIconModule, HopAdminComponent],
   template: `
     <div class="future-targets-banner">
       <mat-icon class="banner-icon">info</mat-icon>
@@ -17,6 +17,7 @@ import { HopAdminComponent } from '@heretto/hop-ui';
     </div>
     <hop-admin></hop-admin>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .future-targets-banner {
       display: flex;

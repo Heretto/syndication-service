@@ -1,6 +1,6 @@
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,9 +14,14 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 @Component({
   selector: 'app-dashboard',
   imports: [
-    CommonModule, RouterModule, MatIconModule, MatButtonModule,
-    MatProgressSpinnerModule, StatusBadgeComponent, CronDisplayComponent, LocalDatePipe,
-  ],
+    RouterModule,
+    MatIconModule,
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    StatusBadgeComponent,
+    CronDisplayComponent,
+    LocalDatePipe
+],
   template: `
     <!-- Page banner -->
     <div class="page-banner">
@@ -32,7 +37,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         </div>
       </div>
     </div>
-
+    
     <!-- KPI tiles -->
     <div class="kpi-grid">
       <div class="kpi-tile">
@@ -66,67 +71,81 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         </div>
       </div>
     </div>
-
-    <div *ngIf="loading" class="loading-center">
-      <mat-spinner diameter="36"></mat-spinner>
-    </div>
-
-    <div *ngIf="!loading" class="content-row">
-      <!-- Active syncs -->
-      <section class="panel">
-        <div class="panel-header">
-          <h2 class="panel-title">Syncs</h2>
-          <a mat-button routerLink="/syncs" class="panel-link">View all</a>
-        </div>
-
-        <div *ngIf="syncs.length === 0" class="panel-empty">
-          <mat-icon>sync</mat-icon>
-          <p>No syncs configured yet.</p>
-          <a mat-stroked-button routerLink="/syncs/new">Create one</a>
-        </div>
-
-        <div class="sync-list" *ngIf="syncs.length > 0">
-          <a class="sync-row" *ngFor="let s of syncs" [routerLink]="['/syncs', s.id]">
-            <span class="sync-dot"
-                  [class.dot-active]="s.is_active"
-                  [class.dot-inactive]="!s.is_active"></span>
-            <div class="sync-info">
-              <span class="sync-name">{{ s.name }}</span>
-              <span class="sync-meta">{{ s.adapter_id }} → {{ s.connector_id }}</span>
-            </div>
-            <app-cron-display [expression]="s.cron_expression"></app-cron-display>
-            <mat-icon class="sync-arrow">chevron_right</mat-icon>
-          </a>
-        </div>
-      </section>
-
-      <!-- Recent runs -->
-      <section class="panel">
-        <div class="panel-header">
-          <h2 class="panel-title">Recent Syncs</h2>
-          <a mat-button routerLink="/runs" class="panel-link">View all</a>
-        </div>
-
-        <div *ngIf="recentRuns.length === 0" class="panel-empty">
-          <mat-icon>history</mat-icon>
-          <p>No syncs yet. Trigger a sync to see results here.</p>
-        </div>
-
-        <div class="run-list" *ngIf="recentRuns.length > 0">
-          <div class="run-row" *ngFor="let r of recentRuns">
-            <app-status-badge [status]="r.status"></app-status-badge>
-            <div class="run-info">
-              <span class="run-sync-name">{{ syncName(r.sync_id) }}</span>
-              <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
-            </div>
-            <div class="run-counts" *ngIf="r.changed_count != null">
-              <span class="run-count">{{ r.changed_count }} changed</span>
-            </div>
+    
+    @if (loading) {
+      <div class="loading-center">
+        <mat-spinner diameter="36"></mat-spinner>
+      </div>
+    }
+    
+    @if (!loading) {
+      <div class="content-row">
+        <!-- Active syncs -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Syncs</h2>
+            <a mat-button routerLink="/syncs" class="panel-link">View all</a>
           </div>
-        </div>
-      </section>
-    </div>
-  `,
+          @if (syncs.length === 0) {
+            <div class="panel-empty">
+              <mat-icon>sync</mat-icon>
+              <p>No syncs configured yet.</p>
+              <a mat-stroked-button routerLink="/syncs/new">Create one</a>
+            </div>
+          }
+          @if (syncs.length > 0) {
+            <div class="sync-list">
+              @for (s of syncs; track s) {
+                <a class="sync-row" [routerLink]="['/syncs', s.id]">
+                  <span class="sync-dot"
+                    [class.dot-active]="s.is_active"
+                  [class.dot-inactive]="!s.is_active"></span>
+                  <div class="sync-info">
+                    <span class="sync-name">{{ s.name }}</span>
+                    <span class="sync-meta">{{ s.adapter_id }} → {{ s.connector_id }}</span>
+                  </div>
+                  <app-cron-display [expression]="s.cron_expression"></app-cron-display>
+                  <mat-icon class="sync-arrow">chevron_right</mat-icon>
+                </a>
+              }
+            </div>
+          }
+        </section>
+        <!-- Recent runs -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Recent Syncs</h2>
+            <a mat-button routerLink="/runs" class="panel-link">View all</a>
+          </div>
+          @if (recentRuns.length === 0) {
+            <div class="panel-empty">
+              <mat-icon>history</mat-icon>
+              <p>No syncs yet. Trigger a sync to see results here.</p>
+            </div>
+          }
+          @if (recentRuns.length > 0) {
+            <div class="run-list">
+              @for (r of recentRuns; track r) {
+                <div class="run-row">
+                  <app-status-badge [status]="r.status"></app-status-badge>
+                  <div class="run-info">
+                    <span class="run-sync-name">{{ syncName(r.sync_id) }}</span>
+                    <span class="run-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</span>
+                  </div>
+                  @if (r.changed_count != null) {
+                    <div class="run-counts">
+                      <span class="run-count">{{ r.changed_count }} changed</span>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </section>
+      </div>
+    }
+    `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .page-banner {
       background: linear-gradient(135deg, #011627 0%, #0d2137 100%);

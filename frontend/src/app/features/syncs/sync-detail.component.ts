@@ -1,6 +1,6 @@
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -21,22 +21,33 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 @Component({
   selector: 'app-sync-detail',
   imports: [
-    CommonModule, RouterModule, MatButtonModule, MatIconModule,
-    MatDialogModule, MatProgressSpinnerModule, MatProgressBarModule,
-    MatTabsModule, MatTooltipModule,
-    StatusBadgeComponent, CronDisplayComponent, LocalDatePipe,
-  ],
+    RouterModule,
+    MatButtonModule,
+    MatIconModule,
+    MatDialogModule,
+    MatProgressSpinnerModule,
+    MatProgressBarModule,
+    MatTabsModule,
+    MatTooltipModule,
+    StatusBadgeComponent,
+    CronDisplayComponent,
+    LocalDatePipe
+],
   template: `
-    <div *ngIf="loading" class="loading-center">
-      <mat-spinner diameter="36"></mat-spinner>
-    </div>
-
-    <div *ngIf="!loading && loadError" class="load-error">
-      <mat-icon>error_outline</mat-icon>
-      <p>Failed to load sync details. Please refresh the page.</p>
-    </div>
-
-    <ng-container *ngIf="!loading && sync">
+    @if (loading) {
+      <div class="loading-center">
+        <mat-spinner diameter="36"></mat-spinner>
+      </div>
+    }
+    
+    @if (!loading && loadError) {
+      <div class="load-error">
+        <mat-icon>error_outline</mat-icon>
+        <p>Failed to load sync details. Please refresh the page.</p>
+      </div>
+    }
+    
+    @if (!loading && sync) {
       <!-- Page banner -->
       <div class="page-banner">
         <div class="banner-inner">
@@ -72,104 +83,123 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
           </div>
         </div>
       </div>
-
       <!-- Auto-deactivation callout -->
-      <div *ngIf="showDeactivationCallout" class="deactivation-callout">
-        <mat-icon>warning_amber</mat-icon>
-        <div class="callout-body">
-          <strong>Sync automatically disabled after repeated failures</strong>
-          <p>This sync was disabled after too many consecutive failed runs. Review the errors in Recent Runs below, fix the underlying issue, then delete and recreate the sync to restart it.</p>
+      @if (showDeactivationCallout) {
+        <div class="deactivation-callout">
+          <mat-icon>warning_amber</mat-icon>
+          <div class="callout-body">
+            <strong>Sync automatically disabled after repeated failures</strong>
+            <p>This sync was disabled after too many consecutive failed runs. Review the errors in Recent Runs below, fix the underlying issue, then delete and recreate the sync to restart it.</p>
+          </div>
         </div>
-      </div>
-
+      }
       <!-- Tabs -->
       <mat-tab-group class="detail-tabs" animationDuration="150ms">
-
         <!-- Recent Syncs tab -->
         <mat-tab>
           <ng-template mat-tab-label>
             Recent Syncs
-            <span *ngIf="runsLoading" class="tab-spinner">
-              <mat-spinner diameter="12"></mat-spinner>
-            </span>
+            @if (runsLoading) {
+              <span class="tab-spinner">
+                <mat-spinner diameter="12"></mat-spinner>
+              </span>
+            }
           </ng-template>
           <div class="tab-content">
             <section class="detail-card">
-              <div *ngIf="!runsLoading && runs.length === 0" class="runs-empty">
-                <mat-icon>history</mat-icon>
-                <p>No syncs yet. Click "Sync Changes" to trigger the first sync.</p>
-              </div>
-
-              <div class="runs-table-wrap" *ngIf="runs.length > 0">
-                <table class="runs-table">
-                  <thead>
-                    <tr>
-                      <th>Status</th>
-                      <th>Started</th>
-                      <th>Duration</th>
-                      <th class="num-col">Changed</th>
-                      <th class="num-col">Removed</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <ng-container *ngFor="let r of runs">
-                      <!-- Main data row -->
-                      <tr [class.row-running]="r.status === 'running'">
-                        <td><app-status-badge [status]="r.status"></app-status-badge></td>
-                        <td class="cell-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</td>
-                        <td class="cell-duration">
-                          <span *ngIf="r.completed_at">{{ duration(r) }}</span>
-                          <span *ngIf="!r.completed_at" class="in-progress-text">In progress</span>
-                        </td>
-                        <td class="num-col">
-                          <span *ngIf="r.changed_count != null" class="stat-badge stat-changed">{{ r.changed_count }}</span>
-                          <span *ngIf="r.changed_count == null" class="cell-empty">—</span>
-                        </td>
-                        <td class="num-col">
-                          <span *ngIf="r.removed_count != null && r.removed_count > 0" class="stat-badge stat-removed">{{ r.removed_count }}</span>
-                          <span *ngIf="!r.removed_count" class="cell-empty">—</span>
-                        </td>
-                        <td class="cell-notes">
-                          <ng-container *ngIf="r.error_message || r.warning_messages?.length; else noNotes">
-                            <div *ngIf="r.error_message" class="note-inline note-error">
-                              <mat-icon>error_outline</mat-icon>
-                              <span class="note-text" [class.note-clamped]="!expandedNotes.has(r.id)">{{ r.error_message }}</span>
-                            </div>
-                            <div *ngFor="let w of r.warning_messages" class="note-inline note-warning">
-                              <mat-icon>warning_amber</mat-icon>
-                              <span class="note-text" [class.note-clamped]="!expandedNotes.has(r.id)">{{ w }}</span>
-                            </div>
-                            <button class="note-toggle" (click)="toggleNote(r.id)">
-                              {{ expandedNotes.has(r.id) ? 'Show less' : 'Show more' }}
-                            </button>
-                          </ng-container>
-                          <ng-template #noNotes>
-                            <span class="cell-empty">—</span>
-                          </ng-template>
-                        </td>
+              @if (!runsLoading && runs.length === 0) {
+                <div class="runs-empty">
+                  <mat-icon>history</mat-icon>
+                  <p>No syncs yet. Click "Sync Changes" to trigger the first sync.</p>
+                </div>
+              }
+              @if (runs.length > 0) {
+                <div class="runs-table-wrap">
+                  <table class="runs-table">
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Started</th>
+                        <th>Duration</th>
+                        <th class="num-col">Changed</th>
+                        <th class="num-col">Removed</th>
+                        <th>Notes</th>
                       </tr>
-                      <!-- Progress row (running only) -->
-                      <tr *ngIf="r.status === 'running'" class="row-progress">
-                        <td colspan="6" class="progress-cell">
-                          <ng-container *ngIf="r.total_count != null && r.total_count > 0; else indeterminate">
-                            <mat-progress-bar mode="determinate" [value]="progressPercent(r)"></mat-progress-bar>
-                            <span class="progress-label">{{ r.processed_count ?? 0 }} of {{ r.total_count }} completed</span>
-                          </ng-container>
-                          <ng-template #indeterminate>
-                            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-                            <span class="progress-label">Syncing…</span>
-                          </ng-template>
-                        </td>
-                      </tr>
-                    </ng-container>
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      @for (r of runs; track r) {
+                        <!-- Main data row -->
+                        <tr [class.row-running]="r.status === 'running'">
+                          <td><app-status-badge [status]="r.status"></app-status-badge></td>
+                          <td class="cell-time">{{ r.started_at | localDate:'MMM d, h:mm a' }}</td>
+                          <td class="cell-duration">
+                            @if (r.completed_at) {
+                              <span>{{ duration(r) }}</span>
+                            }
+                            @if (!r.completed_at) {
+                              <span class="in-progress-text">In progress</span>
+                            }
+                          </td>
+                          <td class="num-col">
+                            @if (r.changed_count != null) {
+                              <span class="stat-badge stat-changed">{{ r.changed_count }}</span>
+                            }
+                            @if (r.changed_count == null) {
+                              <span class="cell-empty">—</span>
+                            }
+                          </td>
+                          <td class="num-col">
+                            @if (r.removed_count != null && r.removed_count > 0) {
+                              <span class="stat-badge stat-removed">{{ r.removed_count }}</span>
+                            }
+                            @if (!r.removed_count) {
+                              <span class="cell-empty">—</span>
+                            }
+                          </td>
+                          <td class="cell-notes">
+                            @if (r.error_message || r.warning_messages?.length) {
+                              @if (r.error_message) {
+                                <div class="note-inline note-error">
+                                  <mat-icon>error_outline</mat-icon>
+                                  <span class="note-text" [class.note-clamped]="!expandedNotes.has(r.id)">{{ r.error_message }}</span>
+                                </div>
+                              }
+                              @for (w of r.warning_messages; track w) {
+                                <div class="note-inline note-warning">
+                                  <mat-icon>warning_amber</mat-icon>
+                                  <span class="note-text" [class.note-clamped]="!expandedNotes.has(r.id)">{{ w }}</span>
+                                </div>
+                              }
+                              <button class="note-toggle" (click)="toggleNote(r.id)">
+                                {{ expandedNotes.has(r.id) ? 'Show less' : 'Show more' }}
+                              </button>
+                            } @else {
+                              <span class="cell-empty">—</span>
+                            }
+                          </td>
+                        </tr>
+                        <!-- Progress row (running only) -->
+                        @if (r.status === 'running') {
+                          <tr class="row-progress">
+                            <td colspan="6" class="progress-cell">
+                              @if (r.total_count != null && r.total_count > 0) {
+                                <mat-progress-bar mode="determinate" [value]="progressPercent(r)"></mat-progress-bar>
+                                <span class="progress-label">{{ r.processed_count ?? 0 }} of {{ r.total_count }} completed</span>
+                              } @else {
+                                <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                                <span class="progress-label">Syncing…</span>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
             </section>
           </div>
         </mat-tab>
-
         <!-- Configuration tab -->
         <mat-tab label="Configuration">
           <div class="tab-content">
@@ -183,47 +213,59 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
                   <dt>Organization</dt>
                   <dd>{{ sync.org_id }}</dd>
                 </div>
-                <div class="dl-row" *ngIf="sync.deployment_id">
-                  <dt>Deployment ID</dt>
-                  <dd class="mono">{{ sync.deployment_id }}</dd>
-                </div>
-                <div class="dl-row" *ngIf="sync.credential_id">
-                  <dt>Credential ID</dt>
-                  <dd class="mono">{{ sync.credential_id }}</dd>
-                </div>
+                @if (sync.deployment_id) {
+                  <div class="dl-row">
+                    <dt>Deployment ID</dt>
+                    <dd class="mono">{{ sync.deployment_id }}</dd>
+                  </div>
+                }
+                @if (sync.credential_id) {
+                  <div class="dl-row">
+                    <dt>Credential ID</dt>
+                    <dd class="mono">{{ sync.credential_id }}</dd>
+                  </div>
+                }
                 <div class="dl-row">
                   <dt>Schedule</dt>
                   <dd>
                     <app-cron-display [expression]="sync.cron_expression"></app-cron-display>
-                    <span class="cron-raw" *ngIf="sync.cron_expression">({{ sync.cron_expression }})</span>
+                    @if (sync.cron_expression) {
+                      <span class="cron-raw">({{ sync.cron_expression }})</span>
+                    }
                   </dd>
                 </div>
                 <div class="dl-row">
                   <dt>Publish Mode</dt>
                   <dd>{{ sync.publish_mode === 'draft' ? 'Save as draft' : 'Auto-publish' }}</dd>
                 </div>
-                <div class="dl-row" *ngIf="sync.high_water_mark">
-                  <dt>Last Synced</dt>
-                  <dd>{{ sync.high_water_mark | localDate:'MMM d, yyyy h:mm a' }}</dd>
-                </div>
-                <div class="dl-row" *ngIf="sync.created_at">
-                  <dt>Created</dt>
-                  <dd>{{ sync.created_at | localDate:'MMM d, yyyy' }}</dd>
-                </div>
+                @if (sync.high_water_mark) {
+                  <div class="dl-row">
+                    <dt>Last Synced</dt>
+                    <dd>{{ sync.high_water_mark | localDate:'MMM d, yyyy h:mm a' }}</dd>
+                  </div>
+                }
+                @if (sync.created_at) {
+                  <div class="dl-row">
+                    <dt>Created</dt>
+                    <dd>{{ sync.created_at | localDate:'MMM d, yyyy' }}</dd>
+                  </div>
+                }
               </dl>
             </section>
           </div>
         </mat-tab>
-
       </mat-tab-group>
-    </ng-container>
-
-    <div *ngIf="!loading && !sync" class="not-found">
-      <mat-icon>search_off</mat-icon>
-      <h2>Sync not found</h2>
-      <a mat-stroked-button routerLink="/syncs">Back to Syncs</a>
-    </div>
-  `,
+    }
+    
+    @if (!loading && !sync) {
+      <div class="not-found">
+        <mat-icon>search_off</mat-icon>
+        <h2>Sync not found</h2>
+        <a mat-stroked-button routerLink="/syncs">Back to Syncs</a>
+      </div>
+    }
+    `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .loading-center { display: flex; justify-content: center; padding: 80px; }
 

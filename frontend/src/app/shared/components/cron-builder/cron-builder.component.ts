@@ -1,4 +1,4 @@
-import { Component, forwardRef, OnInit, OnDestroy } from '@angular/core';
+import { Component, forwardRef, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NG_VALUE_ACCESSOR, ControlValueAccessor } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -39,78 +39,98 @@ interface DayOption {
           I'll write it manually
         </mat-slide-toggle>
       </div>
-
-      <div *ngIf="advancedMode" class="advanced-input">
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Cron Expression</mat-label>
-          <input matInput [(ngModel)]="rawExpression" (ngModelChange)="onRawChange($event)" placeholder="0 9 * * *">
-        </mat-form-field>
-        <div class="preview">
-          <app-cron-display [expression]="currentExpression"></app-cron-display>
-        </div>
-      </div>
-
-      <div *ngIf="!advancedMode" class="builder-controls">
-        <div class="frequency-row">
-          <mat-button-toggle-group [(ngModel)]="frequency" (ngModelChange)="buildExpression()">
-            <mat-button-toggle value="minutes">Minutes</mat-button-toggle>
-            <mat-button-toggle value="hourly">Hourly</mat-button-toggle>
-            <mat-button-toggle value="daily">Daily</mat-button-toggle>
-            <mat-button-toggle value="weekly">Weekly</mat-button-toggle>
-            <mat-button-toggle value="monthly">Monthly</mat-button-toggle>
-          </mat-button-toggle-group>
-        </div>
-
-        <div class="time-row" *ngIf="frequency === 'minutes'">
-          <mat-form-field appearance="outline" class="time-field">
-            <mat-label>Every</mat-label>
-            <mat-select [(ngModel)]="minuteInterval" (ngModelChange)="buildExpression()">
-              <mat-option *ngFor="let iv of minuteIntervals" [value]="iv">{{ iv }} min</mat-option>
-            </mat-select>
+    
+      @if (advancedMode) {
+        <div class="advanced-input">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Cron Expression</mat-label>
+            <input matInput [(ngModel)]="rawExpression" (ngModelChange)="onRawChange($event)" placeholder="0 9 * * *">
           </mat-form-field>
-        </div>
-
-        <div class="time-row" *ngIf="frequency !== 'minutes'">
-          <mat-form-field appearance="outline" *ngIf="frequency !== 'hourly'" class="time-field">
-            <mat-label>Hour</mat-label>
-            <mat-select [(ngModel)]="hour" (ngModelChange)="buildExpression()">
-              <mat-option *ngFor="let h of hours" [value]="h.value">{{ h.label }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="time-field">
-            <mat-label>Minute</mat-label>
-            <mat-select [(ngModel)]="minute" (ngModelChange)="buildExpression()">
-              <mat-option *ngFor="let m of minutes" [value]="m">{{ m | number:'2.0-0' }}</mat-option>
-            </mat-select>
-          </mat-form-field>
-        </div>
-
-        <div class="preview">
-          <app-cron-display [expression]="currentExpression"></app-cron-display>
-        </div>
-
-        <div class="days-row" *ngIf="frequency === 'weekly'">
-          <label class="days-label">Days of the week</label>
-          <div class="day-checkboxes">
-            <mat-checkbox *ngFor="let day of weekDays"
-              [(ngModel)]="day.checked"
-              (ngModelChange)="buildExpression()">
-              {{ day.label }}
-            </mat-checkbox>
+          <div class="preview">
+            <app-cron-display [expression]="currentExpression"></app-cron-display>
           </div>
         </div>
-
-        <div class="day-of-month-row" *ngIf="frequency === 'monthly'">
-          <mat-form-field appearance="outline" class="day-field">
-            <mat-label>Day of month</mat-label>
-            <mat-select [(ngModel)]="dayOfMonth" (ngModelChange)="buildExpression()">
-              <mat-option *ngFor="let d of monthDays" [value]="d">{{ d }}</mat-option>
-            </mat-select>
-          </mat-form-field>
+      }
+    
+      @if (!advancedMode) {
+        <div class="builder-controls">
+          <div class="frequency-row">
+            <mat-button-toggle-group [(ngModel)]="frequency" (ngModelChange)="buildExpression()">
+              <mat-button-toggle value="minutes">Minutes</mat-button-toggle>
+              <mat-button-toggle value="hourly">Hourly</mat-button-toggle>
+              <mat-button-toggle value="daily">Daily</mat-button-toggle>
+              <mat-button-toggle value="weekly">Weekly</mat-button-toggle>
+              <mat-button-toggle value="monthly">Monthly</mat-button-toggle>
+            </mat-button-toggle-group>
+          </div>
+          @if (frequency === 'minutes') {
+            <div class="time-row">
+              <mat-form-field appearance="outline" class="time-field">
+                <mat-label>Every</mat-label>
+                <mat-select [(ngModel)]="minuteInterval" (ngModelChange)="buildExpression()">
+                  @for (iv of minuteIntervals; track iv) {
+                    <mat-option [value]="iv">{{ iv }} min</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+          }
+          @if (frequency !== 'minutes') {
+            <div class="time-row">
+              @if (frequency !== 'hourly') {
+                <mat-form-field appearance="outline" class="time-field">
+                  <mat-label>Hour</mat-label>
+                  <mat-select [(ngModel)]="hour" (ngModelChange)="buildExpression()">
+                    @for (h of hours; track h) {
+                      <mat-option [value]="h.value">{{ h.label }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+              <mat-form-field appearance="outline" class="time-field">
+                <mat-label>Minute</mat-label>
+                <mat-select [(ngModel)]="minute" (ngModelChange)="buildExpression()">
+                  @for (m of minutes; track m) {
+                    <mat-option [value]="m">{{ m | number:'2.0-0' }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+          }
+          <div class="preview">
+            <app-cron-display [expression]="currentExpression"></app-cron-display>
+          </div>
+          @if (frequency === 'weekly') {
+            <div class="days-row">
+              <label class="days-label">Days of the week</label>
+              <div class="day-checkboxes">
+                @for (day of weekDays; track day) {
+                  <mat-checkbox
+                    [(ngModel)]="day.checked"
+                    (ngModelChange)="buildExpression()">
+                    {{ day.label }}
+                  </mat-checkbox>
+                }
+              </div>
+            </div>
+          }
+          @if (frequency === 'monthly') {
+            <div class="day-of-month-row">
+              <mat-form-field appearance="outline" class="day-field">
+                <mat-label>Day of month</mat-label>
+                <mat-select [(ngModel)]="dayOfMonth" (ngModelChange)="buildExpression()">
+                  @for (d of monthDays; track d) {
+                    <mat-option [value]="d">{{ d }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+          }
         </div>
-      </div>
+      }
     </div>
-  `,
+    `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .cron-builder { display: flex; flex-direction: column; gap: 12px; }
     .mode-toggle { display: flex; justify-content: flex-start; }
