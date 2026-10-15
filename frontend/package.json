@@ -10,7 +10,6 @@
   },
   "private": true,
   "dependencies": {
-    "@heretto/hop-ui": "https://github.com/Heretto/hop-core/releases/download/v0.1.5/heretto-hop-ui-0.1.5.tgz",
     "@angular/animations": "^22.2.3",
     "@angular/cdk": "^22.2.3",
     "@angular/common": "^22.2.3",
@@ -21,6 +20,7 @@
     "@angular/platform-browser": "^22.2.3",
     "@angular/platform-browser-dynamic": "^22.2.3",
     "@angular/router": "^22.2.3",
+    "@heretto/hop-ui": "https://github.com/Heretto/hop-core/releases/download/v0.1.9/heretto-hop-ui-0.1.9.tgz",
     "cronstrue": "^3.14.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
