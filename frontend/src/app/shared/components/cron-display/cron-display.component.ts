@@ -1,10 +1,10 @@
 import { Component, Input, OnChanges } from '@angular/core';
-import { CommonModule } from '@angular/common';
+
 import cronstrue from 'cronstrue';
 
 @Component({
   selector: 'app-cron-display',
-  imports: [CommonModule],
+  imports: [],
   template: `<span class="cron-text" [title]="expression">{{ humanReadable }}</span>`,
   styles: [`
     .cron-text {

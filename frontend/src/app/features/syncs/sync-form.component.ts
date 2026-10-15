@@ -1,6 +1,6 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { ReactiveFormsModule, FormsModule, FormBuilder, FormArray, FormGroup, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -60,11 +60,21 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
 @Component({
   selector: 'app-sync-form',
   imports: [
-    CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
-    MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, MatProgressSpinnerModule, MatDividerModule, MatTooltipModule,
-    MatCheckboxModule, MatRadioModule, CronBuilderComponent,
-  ],
+    ReactiveFormsModule,
+    FormsModule,
+    RouterModule,
+    MatButtonModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatProgressSpinnerModule,
+    MatDividerModule,
+    MatTooltipModule,
+    MatCheckboxModule,
+    MatRadioModule,
+    CronBuilderComponent
+],
   template: `
     <!-- Page banner -->
     <div class="page-banner">
@@ -82,20 +92,22 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
         </div>
       </div>
     </div>
-
+    
     <div class="form-page">
       <form [formGroup]="form" (ngSubmit)="onSubmit()" class="sync-form">
-
+    
         <!-- Basic info -->
         <section class="form-section">
           <h2 class="section-title">Basic Information</h2>
           <mat-form-field appearance="outline" class="form-field-full">
             <mat-label>Name</mat-label>
             <input matInput formControlName="name" placeholder="e.g. Salesforce Knowledge Sync">
-            <mat-error *ngIf="form.get('name')?.hasError('required')">Name is required</mat-error>
+            @if (form.get('name')?.hasError('required')) {
+              <mat-error>Name is required</mat-error>
+            }
           </mat-form-field>
         </section>
-
+    
         <!-- Source & target -->
         <section class="form-section">
           <h2 class="section-title">Source & Target</h2>
@@ -115,7 +127,7 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             </mat-form-field>
           </div>
         </section>
-
+    
         <!-- Source connection: Heretto Deploy -->
         <section class="form-section">
           <h2 class="section-title">Source — Heretto Deploy</h2>
@@ -125,121 +137,135 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             <mat-hint>The Deployment ID for the content in Heretto.</mat-hint>
           </mat-form-field>
         </section>
-
+    
         <!-- Target connection: connector credential -->
-        <section class="form-section" *ngIf="form.get('connector_id')?.value !== 'noop'">
-          <h2 class="section-title">Target Connection — {{ connectorLabel }}</h2>
-
-          <!-- Existing credential picker -->
-          <div *ngIf="credsLoading" class="creds-loading">
-            <mat-spinner diameter="16"></mat-spinner>
-            <span>Loading credentials…</span>
-          </div>
-
-          <mat-form-field appearance="outline" class="form-field-full" *ngIf="!credsLoading">
-            <mat-label>Credential</mat-label>
-            <mat-select formControlName="credential_id">
-              <mat-option [value]="null">— None selected —</mat-option>
-              <mat-option *ngFor="let c of credentials" [value]="c.id">{{ c.name }}</mat-option>
-            </mat-select>
-            <mat-hint>Stored credentials for {{ connectorLabel }}. Secrets are encrypted at rest.</mat-hint>
-          </mat-form-field>
-
-          <!-- Saved credentials list with edit / delete -->
-          <div *ngIf="!credsLoading && credentials.length > 0" class="cred-manage-list">
-            <div *ngFor="let c of credentials">
-              <div class="cred-manage-row">
-                <mat-icon class="cred-manage-icon">key</mat-icon>
-                <span class="cred-manage-name">{{ c.name }}</span>
-                <button mat-icon-button type="button" class="cred-action-btn"
+        @if (form.get('connector_id')?.value !== 'noop') {
+          <section class="form-section">
+            <h2 class="section-title">Target Connection — {{ connectorLabel }}</h2>
+            <!-- Existing credential picker -->
+            @if (credsLoading) {
+              <div class="creds-loading">
+                <mat-spinner diameter="16"></mat-spinner>
+                <span>Loading credentials…</span>
+              </div>
+            }
+            @if (!credsLoading) {
+              <mat-form-field appearance="outline" class="form-field-full">
+                <mat-label>Credential</mat-label>
+                <mat-select formControlName="credential_id">
+                  <mat-option [value]="null">— None selected —</mat-option>
+                  @for (c of credentials; track c) {
+                    <mat-option [value]="c.id">{{ c.name }}</mat-option>
+                  }
+                </mat-select>
+                <mat-hint>Stored credentials for {{ connectorLabel }}. Secrets are encrypted at rest.</mat-hint>
+              </mat-form-field>
+            }
+            <!-- Saved credentials list with edit / delete -->
+            @if (!credsLoading && credentials.length > 0) {
+              <div class="cred-manage-list">
+                @for (c of credentials; track c) {
+                  <div>
+                    <div class="cred-manage-row">
+                      <mat-icon class="cred-manage-icon">key</mat-icon>
+                      <span class="cred-manage-name">{{ c.name }}</span>
+                      <button mat-icon-button type="button" class="cred-action-btn"
                         (click)="startEditCredential(c)"
                         [attr.aria-label]="'Edit credential ' + c.name"
                         matTooltip="Edit">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button type="button" class="cred-delete-btn"
+                        <mat-icon>edit</mat-icon>
+                      </button>
+                      <button mat-icon-button type="button" class="cred-delete-btn"
                         (click)="deleteCredential(c)"
                         [attr.aria-label]="'Delete credential ' + c.name"
                         matTooltip="Delete">
-                  <mat-icon>delete</mat-icon>
-                </button>
+                        <mat-icon>delete</mat-icon>
+                      </button>
+                    </div>
+                    <!-- Inline edit form for this credential -->
+                    @if (editingCredId === c.id) {
+                      <div class="new-cred-form cred-edit-form">
+                        <mat-divider class="cred-divider"></mat-divider>
+                        <p class="cred-form-title">Edit credential</p>
+                        <mat-form-field appearance="outline" class="form-field-full">
+                          <mat-label>Credential Name</mat-label>
+                          <input matInput [(ngModel)]="editCredName" [ngModelOptions]="{standalone: true}">
+                        </mat-form-field>
+                        <div class="cred-fields-grid">
+                          @for (f of credentialFields; track f) {
+                            <mat-form-field appearance="outline" class="cred-field">
+                              <mat-label>{{ f.label }}</mat-label>
+                              <input matInput
+                                [type]="f.inputType || 'text'"
+                                [(ngModel)]="editCredValues[f.key]"
+                                [ngModelOptions]="{standalone: true}"
+                                placeholder="Leave blank to keep existing">
+                              <mat-hint>Leave blank to keep existing value</mat-hint>
+                            </mat-form-field>
+                          }
+                        </div>
+                        <div class="cred-actions">
+                          <button mat-stroked-button type="button" (click)="cancelEditCredential()" class="new-cred-btn">
+                            Cancel
+                          </button>
+                          <button mat-flat-button type="button" (click)="saveEditCredential()" [disabled]="savingCred" class="save-cred-btn">
+                            @if (savingCred) {
+                              <mat-spinner diameter="14" class="btn-spinner"></mat-spinner>
+                            }
+                            Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
-
-              <!-- Inline edit form for this credential -->
-              <div *ngIf="editingCredId === c.id" class="new-cred-form cred-edit-form">
-                <mat-divider class="cred-divider"></mat-divider>
-                <p class="cred-form-title">Edit credential</p>
-
-                <mat-form-field appearance="outline" class="form-field-full">
-                  <mat-label>Credential Name</mat-label>
-                  <input matInput [(ngModel)]="editCredName" [ngModelOptions]="{standalone: true}">
-                </mat-form-field>
-
-                <div class="cred-fields-grid">
-                  <mat-form-field appearance="outline" *ngFor="let f of credentialFields" class="cred-field">
-                    <mat-label>{{ f.label }}</mat-label>
-                    <input matInput
-                           [type]="f.inputType || 'text'"
-                           [(ngModel)]="editCredValues[f.key]"
-                           [ngModelOptions]="{standalone: true}"
-                           placeholder="Leave blank to keep existing">
-                    <mat-hint>Leave blank to keep existing value</mat-hint>
-                  </mat-form-field>
-                </div>
-
-                <div class="cred-actions">
-                  <button mat-stroked-button type="button" (click)="cancelEditCredential()" class="new-cred-btn">
-                    Cancel
-                  </button>
-                  <button mat-flat-button type="button" (click)="saveEditCredential()" [disabled]="savingCred" class="save-cred-btn">
-                    <mat-spinner *ngIf="savingCred" diameter="14" class="btn-spinner"></mat-spinner>
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Create new credential toggle -->
-          <div class="new-cred-toggle">
-            <button mat-stroked-button type="button" (click)="toggleNewCred()" class="new-cred-btn">
-              <mat-icon>{{ showNewCred ? 'expand_less' : 'add' }}</mat-icon>
-              {{ showNewCred ? 'Cancel' : 'Create new credential' }}
-            </button>
-          </div>
-
-          <!-- Inline create-new credential form -->
-          <div *ngIf="showNewCred" class="new-cred-form">
-            <mat-divider class="cred-divider"></mat-divider>
-            <p class="cred-form-title">New {{ connectorLabel }} credential</p>
-
-            <mat-form-field appearance="outline" class="form-field-full">
-              <mat-label>Credential Name</mat-label>
-              <input matInput [(ngModel)]="newCredName" [ngModelOptions]="{standalone: true}"
-                     placeholder="e.g. Production Salesforce">
-            </mat-form-field>
-
-            <div class="cred-fields-grid">
-              <mat-form-field appearance="outline" *ngFor="let f of credentialFields" class="cred-field">
-                <mat-label>{{ f.label }}</mat-label>
-                <input matInput
-                       [type]="f.inputType || 'text'"
-                       [(ngModel)]="newCredValues[f.key]"
-                       [ngModelOptions]="{standalone: true}"
-                       [placeholder]="f.hint || f.defaultVal || ''">
-                <mat-hint *ngIf="f.hint">{{ f.hint }}</mat-hint>
-              </mat-form-field>
-            </div>
-
-            <div class="cred-actions">
-              <button mat-flat-button type="button" (click)="saveNewCredential()" [disabled]="savingCred" class="save-cred-btn">
-                <mat-spinner *ngIf="savingCred" diameter="14" class="btn-spinner"></mat-spinner>
-                Save Credential
+            }
+            <!-- Create new credential toggle -->
+            <div class="new-cred-toggle">
+              <button mat-stroked-button type="button" (click)="toggleNewCred()" class="new-cred-btn">
+                <mat-icon>{{ showNewCred ? 'expand_less' : 'add' }}</mat-icon>
+                {{ showNewCred ? 'Cancel' : 'Create new credential' }}
               </button>
             </div>
-          </div>
-        </section>
-
+            <!-- Inline create-new credential form -->
+            @if (showNewCred) {
+              <div class="new-cred-form">
+                <mat-divider class="cred-divider"></mat-divider>
+                <p class="cred-form-title">New {{ connectorLabel }} credential</p>
+                <mat-form-field appearance="outline" class="form-field-full">
+                  <mat-label>Credential Name</mat-label>
+                  <input matInput [(ngModel)]="newCredName" [ngModelOptions]="{standalone: true}"
+                    placeholder="e.g. Production Salesforce">
+                </mat-form-field>
+                <div class="cred-fields-grid">
+                  @for (f of credentialFields; track f) {
+                    <mat-form-field appearance="outline" class="cred-field">
+                      <mat-label>{{ f.label }}</mat-label>
+                      <input matInput
+                        [type]="f.inputType || 'text'"
+                        [(ngModel)]="newCredValues[f.key]"
+                        [ngModelOptions]="{standalone: true}"
+                        [placeholder]="f.hint || f.defaultVal || ''">
+                      @if (f.hint) {
+                        <mat-hint>{{ f.hint }}</mat-hint>
+                      }
+                    </mat-form-field>
+                  }
+                </div>
+                <div class="cred-actions">
+                  <button mat-flat-button type="button" (click)="saveNewCredential()" [disabled]="savingCred" class="save-cred-btn">
+                    @if (savingCred) {
+                      <mat-spinner diameter="14" class="btn-spinner"></mat-spinner>
+                    }
+                    Save Credential
+                  </button>
+                </div>
+              </div>
+            }
+          </section>
+        }
+    
         <!-- Schedule -->
         <section class="form-section">
           <h2 class="section-title">Schedule</h2>
@@ -247,14 +273,18 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             <mat-checkbox formControlName="manual_only" color="primary">
               Manual sync only — no automatic schedule
             </mat-checkbox>
-            <p class="manual-only-hint" *ngIf="form.get('manual_only')?.value">
-              This sync will only run when triggered manually from the sync detail page.
-            </p>
+            @if (form.get('manual_only')?.value) {
+              <p class="manual-only-hint">
+                This sync will only run when triggered manually from the sync detail page.
+              </p>
+            }
           </div>
-          <div *ngIf="!form.get('manual_only')?.value" class="cron-builder-wrap">
-            <app-cron-builder formControlName="cron_expression"></app-cron-builder>
-          </div>
-
+          @if (!form.get('manual_only')?.value) {
+            <div class="cron-builder-wrap">
+              <app-cron-builder formControlName="cron_expression"></app-cron-builder>
+            </div>
+          }
+    
           <div class="publish-mode-row">
             <p class="publish-mode-label">Publish Mode</p>
             <mat-radio-group formControlName="publish_mode" class="publish-mode-group">
@@ -269,131 +299,156 @@ const TARGET_PLACEHOLDERS: Record<string, string> = {
             </mat-radio-group>
           </div>
         </section>
-
+    
         <!-- Field mapping -->
         <section class="form-section">
           <h2 class="section-title">Field Mapping</h2>
           <p class="mapping-hint">
             Map Heretto Deploy article fields to the corresponding fields in your target knowledge base.
           </p>
-
+    
           <!-- Column headers -->
-          <div class="mapping-header" *ngIf="mappingArray.length > 0">
-            <span class="mapping-col-label">Heretto Deploy Field</span>
-            <span class="mapping-arrow-spacer"></span>
-            <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
-            <span class="mapping-remove-spacer"></span>
-          </div>
-
-          <div formArrayName="mapping" class="mapping-list">
-            <div *ngFor="let row of mappingArray.controls; let i = index"
-                 [formGroupName]="i" class="mapping-row">
-
-              <!-- Left: Deploy IR field -->
-              <mat-form-field appearance="outline" class="mapping-field">
-                <mat-select formControlName="ir_field" placeholder="Select Deploy field">
-                  <mat-option *ngFor="let f of sourceFields" [value]="f.key">
-                    {{ f.label }} ({{ f.key }})
-                  </mat-option>
-                </mat-select>
-              </mat-form-field>
-
-              <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
-
-              <!-- Right: target field — dropdown when SF fields loaded, text input otherwise -->
-              <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>{{ connectorFieldLabel }} Field</mat-label>
-                <mat-select *ngIf="targetFields.length > 0"
-                            formControlName="target_field"
-                            placeholder="Select field">
-                  <mat-option *ngFor="let f of targetFields" [value]="f.api_name">
-                    {{ f.label }} ({{ f.api_name }})
-                  </mat-option>
-                </mat-select>
-                <input *ngIf="targetFields.length === 0"
-                       matInput formControlName="target_field"
-                       [placeholder]="targetFieldPlaceholder">
-                <mat-hint *ngIf="targetFieldsLoading">Loading Salesforce fields…</mat-hint>
-              </mat-form-field>
-
-              <button mat-icon-button type="button" (click)="removeMappingRow(i)"
-                      class="remove-row-btn" aria-label="Remove row">
-                <mat-icon>remove_circle_outline</mat-icon>
-              </button>
+          @if (mappingArray.length > 0) {
+            <div class="mapping-header">
+              <span class="mapping-col-label">Heretto Deploy Field</span>
+              <span class="mapping-arrow-spacer"></span>
+              <span class="mapping-col-label">{{ connectorFieldLabel }} Field</span>
+              <span class="mapping-remove-spacer"></span>
             </div>
+          }
+    
+          <div formArrayName="mapping" class="mapping-list">
+            @for (row of mappingArray.controls; track row; let i = $index) {
+              <div
+                [formGroupName]="i" class="mapping-row">
+                <!-- Left: Deploy IR field -->
+                <mat-form-field appearance="outline" class="mapping-field">
+                  <mat-select formControlName="ir_field" placeholder="Select Deploy field">
+                    @for (f of sourceFields; track f) {
+                      <mat-option [value]="f.key">
+                        {{ f.label }} ({{ f.key }})
+                      </mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+                <!-- Right: target field — dropdown when SF fields loaded, text input otherwise -->
+                <mat-form-field appearance="outline" class="mapping-field">
+                  <mat-label>{{ connectorFieldLabel }} Field</mat-label>
+                  @if (targetFields.length > 0) {
+                    <mat-select
+                      formControlName="target_field"
+                      placeholder="Select field">
+                      @for (f of targetFields; track f) {
+                        <mat-option [value]="f.api_name">
+                          {{ f.label }} ({{ f.api_name }})
+                        </mat-option>
+                      }
+                    </mat-select>
+                  }
+                  @if (targetFields.length === 0) {
+                    <input
+                      matInput formControlName="target_field"
+                      [placeholder]="targetFieldPlaceholder">
+                  }
+                  @if (targetFieldsLoading) {
+                    <mat-hint>Loading Salesforce fields…</mat-hint>
+                  }
+                </mat-form-field>
+                <button mat-icon-button type="button" (click)="removeMappingRow(i)"
+                  class="remove-row-btn" aria-label="Remove row">
+                  <mat-icon>remove_circle_outline</mat-icon>
+                </button>
+              </div>
+            }
           </div>
-
+    
           <button mat-stroked-button type="button" (click)="addMappingRow()" class="add-row-btn">
             <mat-icon>add</mat-icon> Add Field
           </button>
         </section>
-
+    
         <!-- Data Category Mapping (Salesforce only) -->
-        <section class="form-section" *ngIf="form.get('connector_id')?.value === 'salesforce'">
-          <h2 class="section-title">Data Category Mapping</h2>
-          <p class="mapping-hint">
-            Map Heretto Deploy taxonomy groups to Salesforce Data Category groups.
-            Both values must be entered exactly as they appear in each system — they are case-sensitive.
-          </p>
-          <ul class="mapping-hint-list">
-            <li><strong>Deploy Taxonomy Group</strong> — the group name as defined in your Heretto publication's taxonomy metadata (e.g. <code>Audiences</code>, <code>Products</code>).</li>
-            <li><strong>Salesforce Category Group</strong> — the Data Category Group <em>API name</em> from Salesforce Setup → Data Category Groups (not the label).</li>
-          </ul>
-
-          <div class="mapping-header" *ngIf="categoryMapArray.length > 0">
-            <span class="mapping-col-label">Deploy Taxonomy Group</span>
-            <span class="mapping-arrow-spacer"></span>
-            <span class="mapping-col-label">Salesforce Category Group API Name</span>
-            <span class="mapping-remove-spacer"></span>
-          </div>
-
-          <div formArrayName="category_mapping" class="mapping-list">
-            <div *ngFor="let row of categoryMapArray.controls; let i = index"
-                 [formGroupName]="i" class="mapping-row">
-              <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>Deploy Taxonomy Group</mat-label>
-                <input matInput formControlName="deploy_group" placeholder="e.g. Audiences">
-                <mat-hint>Exact group name from your Heretto publication taxonomy metadata</mat-hint>
-              </mat-form-field>
-              <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
-              <mat-form-field appearance="outline" class="mapping-field">
-                <mat-label>Salesforce Category Group API Name</mat-label>
-                <mat-select *ngIf="sfCategoryGroups.length > 0"
-                            formControlName="sf_group"
-                            placeholder="Select group">
-                  <mat-option *ngFor="let g of sfCategoryGroups" [value]="g.name">
-                    {{ g.label }} ({{ g.name }})
-                  </mat-option>
-                </mat-select>
-                <input *ngIf="sfCategoryGroups.length === 0"
-                       matInput formControlName="sf_group"
-                       placeholder="e.g. Audiences">
-                <mat-hint *ngIf="!sfCategoryGroupsLoading">API name from Salesforce Setup → Data Category Groups</mat-hint>
-                <mat-hint *ngIf="sfCategoryGroupsLoading">Loading Salesforce category groups…</mat-hint>
-              </mat-form-field>
-              <button mat-icon-button type="button" (click)="removeCategoryRow(i)"
-                      class="remove-row-btn" aria-label="Remove row">
-                <mat-icon>remove_circle_outline</mat-icon>
-              </button>
+        @if (form.get('connector_id')?.value === 'salesforce') {
+          <section class="form-section">
+            <h2 class="section-title">Data Category Mapping</h2>
+            <p class="mapping-hint">
+              Map Heretto Deploy taxonomy groups to Salesforce Data Category groups.
+              Both values must be entered exactly as they appear in each system — they are case-sensitive.
+            </p>
+            <ul class="mapping-hint-list">
+              <li><strong>Deploy Taxonomy Group</strong> — the group name as defined in your Heretto publication's taxonomy metadata (e.g. <code>Audiences</code>, <code>Products</code>).</li>
+              <li><strong>Salesforce Category Group</strong> — the Data Category Group <em>API name</em> from Salesforce Setup → Data Category Groups (not the label).</li>
+            </ul>
+            @if (categoryMapArray.length > 0) {
+              <div class="mapping-header">
+                <span class="mapping-col-label">Deploy Taxonomy Group</span>
+                <span class="mapping-arrow-spacer"></span>
+                <span class="mapping-col-label">Salesforce Category Group API Name</span>
+                <span class="mapping-remove-spacer"></span>
+              </div>
+            }
+            <div formArrayName="category_mapping" class="mapping-list">
+              @for (row of categoryMapArray.controls; track row; let i = $index) {
+                <div
+                  [formGroupName]="i" class="mapping-row">
+                  <mat-form-field appearance="outline" class="mapping-field">
+                    <mat-label>Deploy Taxonomy Group</mat-label>
+                    <input matInput formControlName="deploy_group" placeholder="e.g. Audiences">
+                    <mat-hint>Exact group name from your Heretto publication taxonomy metadata</mat-hint>
+                  </mat-form-field>
+                  <mat-icon class="mapping-arrow">arrow_forward</mat-icon>
+                  <mat-form-field appearance="outline" class="mapping-field">
+                    <mat-label>Salesforce Category Group API Name</mat-label>
+                    @if (sfCategoryGroups.length > 0) {
+                      <mat-select
+                        formControlName="sf_group"
+                        placeholder="Select group">
+                        @for (g of sfCategoryGroups; track g) {
+                          <mat-option [value]="g.name">
+                            {{ g.label }} ({{ g.name }})
+                          </mat-option>
+                        }
+                      </mat-select>
+                    }
+                    @if (sfCategoryGroups.length === 0) {
+                      <input
+                        matInput formControlName="sf_group"
+                        placeholder="e.g. Audiences">
+                    }
+                    @if (!sfCategoryGroupsLoading) {
+                      <mat-hint>API name from Salesforce Setup → Data Category Groups</mat-hint>
+                    }
+                    @if (sfCategoryGroupsLoading) {
+                      <mat-hint>Loading Salesforce category groups…</mat-hint>
+                    }
+                  </mat-form-field>
+                  <button mat-icon-button type="button" (click)="removeCategoryRow(i)"
+                    class="remove-row-btn" aria-label="Remove row">
+                    <mat-icon>remove_circle_outline</mat-icon>
+                  </button>
+                </div>
+              }
             </div>
-          </div>
-
-          <button mat-stroked-button type="button" (click)="addCategoryRow()" class="add-row-btn">
-            <mat-icon>add</mat-icon> Add Category Group
-          </button>
-        </section>
-
+            <button mat-stroked-button type="button" (click)="addCategoryRow()" class="add-row-btn">
+              <mat-icon>add</mat-icon> Add Category Group
+            </button>
+          </section>
+        }
+    
         <!-- Actions -->
         <div class="form-actions">
           <a mat-stroked-button routerLink="/syncs" class="cancel-btn">Cancel</a>
           <button mat-flat-button type="submit" class="save-btn" [disabled]="saving">
-            <mat-spinner *ngIf="saving" diameter="16" class="btn-spinner"></mat-spinner>
+            @if (saving) {
+              <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
+            }
             {{ isEdit ? 'Save Changes' : 'Create Sync' }}
           </button>
         </div>
       </form>
     </div>
-  `,
+    `,
   styles: [`
     .page-banner {
       background: linear-gradient(135deg, #011627 0%, #0d2137 100%);

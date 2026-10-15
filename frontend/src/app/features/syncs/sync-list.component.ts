@@ -1,6 +1,6 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,10 +17,16 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
 @Component({
   selector: 'app-sync-list',
   imports: [
-    CommonModule, FormsModule, RouterModule, MatButtonModule, MatIconModule,
-    MatDialogModule, MatProgressSpinnerModule, MatTooltipModule,
-    CronDisplayComponent, LocalDatePipe,
-  ],
+    FormsModule,
+    RouterModule,
+    MatButtonModule,
+    MatIconModule,
+    MatDialogModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
+    CronDisplayComponent,
+    LocalDatePipe
+],
   template: `
     <!-- Page banner -->
     <div class="page-banner">
@@ -41,7 +47,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         </div>
       </div>
     </div>
-
+    
     <!-- KPI bar -->
     <div class="metrics-bar">
       <div class="metric-tile">
@@ -66,28 +72,30 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         </div>
       </div>
     </div>
-
+    
     <!-- Filter toolbar -->
     <div class="filter-bar">
       <div class="search-wrap">
         <mat-icon class="search-icon">search</mat-icon>
         <input class="search-input" type="text" placeholder="Search syncs..."
-               [(ngModel)]="searchQuery" aria-label="Search syncs">
-        <button *ngIf="searchQuery" class="search-clear" (click)="searchQuery = ''" aria-label="Clear search">
-          <mat-icon>close</mat-icon>
-        </button>
+          [(ngModel)]="searchQuery" aria-label="Search syncs">
+        @if (searchQuery) {
+          <button class="search-clear" (click)="searchQuery = ''" aria-label="Clear search">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
       </div>
       <div class="filter-tabs" role="tablist">
         <button role="tab" class="filter-tab" [class.filter-tab-active]="activeFilter === 'all'"
-                (click)="activeFilter = 'all'">
+          (click)="activeFilter = 'all'">
           All <span class="tab-count">{{ syncs.length }}</span>
         </button>
         <button role="tab" class="filter-tab" [class.filter-tab-active]="activeFilter === 'active'"
-                (click)="activeFilter = 'active'">
+          (click)="activeFilter = 'active'">
           Active <span class="tab-count">{{ activeCount }}</span>
         </button>
         <button role="tab" class="filter-tab" [class.filter-tab-active]="activeFilter === 'inactive'"
-                (click)="activeFilter = 'inactive'">
+          (click)="activeFilter = 'inactive'">
           Inactive <span class="tab-count">{{ inactiveCount }}</span>
         </button>
       </div>
@@ -95,102 +103,115 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
         <span class="results-count">{{ filteredSyncs.length }} record{{ filteredSyncs.length !== 1 ? 's' : '' }}</span>
       </div>
     </div>
-
+    
     <!-- Loading -->
-    <div *ngIf="loading" class="loading-center">
-      <mat-spinner diameter="36"></mat-spinner>
-    </div>
-
+    @if (loading) {
+      <div class="loading-center">
+        <mat-spinner diameter="36"></mat-spinner>
+      </div>
+    }
+    
     <!-- Empty state -->
-    <div *ngIf="!loading && syncs.length === 0" class="empty-state">
-      <div class="empty-icon-wrap"><mat-icon>sync</mat-icon></div>
-      <h2>No syncs configured</h2>
-      <p>Create your first sync to start syndicating content to your knowledge base.</p>
-      <a mat-flat-button color="primary" routerLink="new">
-        <mat-icon>add</mat-icon> Create a Sync
-      </a>
-    </div>
-
+    @if (!loading && syncs.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon-wrap"><mat-icon>sync</mat-icon></div>
+        <h2>No syncs configured</h2>
+        <p>Create your first sync to start syndicating content to your knowledge base.</p>
+        <a mat-flat-button color="primary" routerLink="new">
+          <mat-icon>add</mat-icon> Create a Sync
+        </a>
+      </div>
+    }
+    
     <!-- No results -->
-    <div *ngIf="!loading && syncs.length > 0 && filteredSyncs.length === 0" class="empty-state">
-      <div class="empty-icon-wrap"><mat-icon>search_off</mat-icon></div>
-      <h2>No matching syncs</h2>
-      <p>Try adjusting your search or filter.</p>
-      <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
-    </div>
-
+    @if (!loading && syncs.length > 0 && filteredSyncs.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon-wrap"><mat-icon>search_off</mat-icon></div>
+        <h2>No matching syncs</h2>
+        <p>Try adjusting your search or filter.</p>
+        <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
+      </div>
+    }
+    
     <!-- Card grid -->
-    <div *ngIf="!loading && filteredSyncs.length > 0" class="card-grid">
-      <article class="sync-card" *ngFor="let s of filteredSyncs"
-               (click)="openDetail(s)" role="button" tabindex="0"
-               (keydown.enter)="openDetail(s)" (keydown.space)="openDetail(s)"
-               [attr.aria-label]="'Open sync: ' + s.name">
-
-        <div class="card-status-bar"
-             [class.bar-active]="s.is_active"
-             [class.bar-inactive]="!s.is_active"></div>
-
-        <div class="card-inner">
-          <div class="card-header">
-            <div class="card-dot"
-                 [class.dot-active]="s.is_active"
-                 [class.dot-inactive]="!s.is_active"></div>
-            <div class="card-name-wrap">
-              <h3 class="card-name" [title]="s.name">{{ s.name }}</h3>
-              <span class="card-pipeline">{{ s.adapter_id }} → {{ s.connector_id }}</span>
-            </div>
-            <span class="card-pill"
+    @if (!loading && filteredSyncs.length > 0) {
+      <div class="card-grid">
+        @for (s of filteredSyncs; track s) {
+          <article class="sync-card"
+            (click)="openDetail(s)" role="button" tabindex="0"
+            (keydown.enter)="openDetail(s)" (keydown.space)="openDetail(s)"
+            [attr.aria-label]="'Open sync: ' + s.name">
+            <div class="card-status-bar"
+              [class.bar-active]="s.is_active"
+            [class.bar-inactive]="!s.is_active"></div>
+            <div class="card-inner">
+              <div class="card-header">
+                <div class="card-dot"
+                  [class.dot-active]="s.is_active"
+                [class.dot-inactive]="!s.is_active"></div>
+                <div class="card-name-wrap">
+                  <h3 class="card-name" [title]="s.name">{{ s.name }}</h3>
+                  <span class="card-pipeline">{{ s.adapter_id }} → {{ s.connector_id }}</span>
+                </div>
+                <span class="card-pill"
                   [class.pill-active]="s.is_active"
                   [class.pill-inactive]="!s.is_active">
-              {{ s.is_active ? 'Active' : 'Inactive' }}
-            </span>
-          </div>
-
-          <div class="card-cron-row">
-            <mat-icon class="card-field-icon">schedule</mat-icon>
-            <app-cron-display [expression]="s.cron_expression"></app-cron-display>
-          </div>
-
-          <div class="card-tags">
-            <span class="tag tag-org">
-              <mat-icon>business</mat-icon> {{ s.org_id }}
-            </span>
-            <span *ngIf="s.deployment_id" class="tag tag-deploy">
-              <mat-icon>cloud_upload</mat-icon> {{ s.deployment_id }}
-            </span>
-          </div>
-
-          <div class="card-footer">
-            <div class="card-meta">
-              <span *ngIf="s.last_run_status === 'failed'" class="meta-run-failed">
-                <mat-icon>error_outline</mat-icon> Last sync failed
-              </span>
-              <span *ngIf="s.created_at && s.last_run_status !== 'failed'" class="meta-text">
-                Created {{ s.created_at | localDate:'MMM d, yyyy' }}
-              </span>
-              <span *ngIf="s.high_water_mark" class="meta-text">
-                Last sync: {{ s.high_water_mark | localDate:'MMM d, h:mm a' }}
-              </span>
+                  {{ s.is_active ? 'Active' : 'Inactive' }}
+                </span>
+              </div>
+              <div class="card-cron-row">
+                <mat-icon class="card-field-icon">schedule</mat-icon>
+                <app-cron-display [expression]="s.cron_expression"></app-cron-display>
+              </div>
+              <div class="card-tags">
+                <span class="tag tag-org">
+                  <mat-icon>business</mat-icon> {{ s.org_id }}
+                </span>
+                @if (s.deployment_id) {
+                  <span class="tag tag-deploy">
+                    <mat-icon>cloud_upload</mat-icon> {{ s.deployment_id }}
+                  </span>
+                }
+              </div>
+              <div class="card-footer">
+                <div class="card-meta">
+                  @if (s.last_run_status === 'failed') {
+                    <span class="meta-run-failed">
+                      <mat-icon>error_outline</mat-icon> Last sync failed
+                    </span>
+                  }
+                  @if (s.created_at && s.last_run_status !== 'failed') {
+                    <span class="meta-text">
+                      Created {{ s.created_at | localDate:'MMM d, yyyy' }}
+                    </span>
+                  }
+                  @if (s.high_water_mark) {
+                    <span class="meta-text">
+                      Last sync: {{ s.high_water_mark | localDate:'MMM d, h:mm a' }}
+                    </span>
+                  }
+                </div>
+                <div class="card-actions" (click)="$event.stopPropagation()">
+                  <button mat-icon-button class="action-btn" (click)="triggerNow(s)"
+                    matTooltip="Run now">
+                    <mat-icon>play_arrow</mat-icon>
+                  </button>
+                  <a mat-icon-button class="action-btn" [routerLink]="[s.id, 'edit']"
+                    matTooltip="Edit">
+                    <mat-icon>edit</mat-icon>
+                  </a>
+                  <button mat-icon-button class="action-btn action-btn-danger" (click)="deleteSync(s)"
+                    matTooltip="Delete">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              </div>
             </div>
-            <div class="card-actions" (click)="$event.stopPropagation()">
-              <button mat-icon-button class="action-btn" (click)="triggerNow(s)"
-                      matTooltip="Run now">
-                <mat-icon>play_arrow</mat-icon>
-              </button>
-              <a mat-icon-button class="action-btn" [routerLink]="[s.id, 'edit']"
-                 matTooltip="Edit">
-                <mat-icon>edit</mat-icon>
-              </a>
-              <button mat-icon-button class="action-btn action-btn-danger" (click)="deleteSync(s)"
-                      matTooltip="Delete">
-                <mat-icon>delete</mat-icon>
-              </button>
-            </div>
-          </div>
-        </div>
-      </article>
-    </div>
-  `,
+          </article>
+        }
+      </div>
+    }
+    `,
   styles: [`
     .page-banner {
       background: linear-gradient(135deg, #011627 0%, #0d2137 100%);

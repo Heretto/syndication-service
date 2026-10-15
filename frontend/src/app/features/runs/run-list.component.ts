@@ -1,6 +1,6 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -19,10 +19,16 @@ interface RunWithSyncName extends SyncRun {
 @Component({
   selector: 'app-run-list',
   imports: [
-    CommonModule, FormsModule, RouterModule, MatButtonModule, MatIconModule,
-    MatProgressSpinnerModule, MatSelectModule, MatFormFieldModule,
-    StatusBadgeComponent, LocalDatePipe,
-  ],
+    FormsModule,
+    RouterModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSelectModule,
+    MatFormFieldModule,
+    StatusBadgeComponent,
+    LocalDatePipe
+],
   template: `
     <!-- Page banner -->
     <div class="page-banner">
@@ -38,31 +44,33 @@ interface RunWithSyncName extends SyncRun {
         </div>
       </div>
     </div>
-
+    
     <!-- Filter bar -->
     <div class="filter-bar">
       <mat-form-field appearance="outline" class="filter-select">
         <mat-label>Filter by sync</mat-label>
         <mat-select [(ngModel)]="selectedSyncId" (ngModelChange)="onFilterChange()">
           <mat-option value="">All syncs</mat-option>
-          <mat-option *ngFor="let s of syncs" [value]="s.id">{{ s.name }}</mat-option>
+          @for (s of syncs; track s) {
+            <mat-option [value]="s.id">{{ s.name }}</mat-option>
+          }
         </mat-select>
       </mat-form-field>
       <div class="filter-tabs" role="tablist">
         <button role="tab" class="filter-tab" [class.filter-tab-active]="statusFilter === ''"
-                (click)="statusFilter = ''">
+          (click)="statusFilter = ''">
           All <span class="tab-count">{{ allRuns.length }}</span>
         </button>
         <button role="tab" class="filter-tab" [class.filter-tab-active]="statusFilter === 'success'"
-                (click)="statusFilter = 'success'">
+          (click)="statusFilter = 'success'">
           Success <span class="tab-count">{{ countByStatus('success') }}</span>
         </button>
         <button role="tab" class="filter-tab" [class.filter-tab-active]="statusFilter === 'error'"
-                (click)="statusFilter = 'error'">
+          (click)="statusFilter = 'error'">
           Errors <span class="tab-count">{{ countByStatus('error') }}</span>
         </button>
         <button role="tab" class="filter-tab" [class.filter-tab-active]="statusFilter === 'running'"
-                (click)="statusFilter = 'running'">
+          (click)="statusFilter = 'running'">
           Running <span class="tab-count">{{ countByStatus('running') }}</span>
         </button>
       </div>
@@ -70,50 +78,58 @@ interface RunWithSyncName extends SyncRun {
         <span class="results-count">{{ filteredRuns.length }} sync{{ filteredRuns.length !== 1 ? 's' : '' }}</span>
       </div>
     </div>
-
-    <div *ngIf="loading" class="loading-center">
-      <mat-spinner diameter="36"></mat-spinner>
-    </div>
-
-    <div *ngIf="!loading && filteredRuns.length === 0" class="empty-state">
-      <div class="empty-icon-wrap"><mat-icon>history</mat-icon></div>
-      <h2>No syncs found</h2>
-      <p>{{ allRuns.length === 0 ? 'No syncs have run yet.' : 'No syncs match the current filter.' }}</p>
-    </div>
-
+    
+    @if (loading) {
+      <div class="loading-center">
+        <mat-spinner diameter="36"></mat-spinner>
+      </div>
+    }
+    
+    @if (!loading && filteredRuns.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon-wrap"><mat-icon>history</mat-icon></div>
+        <h2>No syncs found</h2>
+        <p>{{ allRuns.length === 0 ? 'No syncs have run yet.' : 'No syncs match the current filter.' }}</p>
+      </div>
+    }
+    
     <!-- Runs table -->
-    <div *ngIf="!loading && filteredRuns.length > 0" class="runs-table-wrap">
-      <table class="runs-table">
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Sync</th>
-            <th>Started</th>
-            <th>Completed</th>
-            <th>Changed</th>
-            <th>Removed</th>
-            <th>Links Fixed</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let r of filteredRuns" class="run-tr"
-              [routerLink]="['/syncs', r.sync_id]">
-            <td><app-status-badge [status]="r.status"></app-status-badge></td>
-            <td class="sync-name-cell">
-              <a [routerLink]="['/syncs', r.sync_id]" (click)="$event.stopPropagation()" class="sync-link">
-                {{ r.syncName }}
-              </a>
-            </td>
-            <td class="time-cell">{{ r.started_at | localDate:'MMM d, h:mm a' }}</td>
-            <td class="time-cell">{{ r.completed_at ? (r.completed_at | localDate:'h:mm a') : '—' }}</td>
-            <td class="num-cell">{{ r.changed_count ?? '—' }}</td>
-            <td class="num-cell">{{ r.removed_count ?? '—' }}</td>
-            <td class="num-cell">{{ r.links_fixed ?? '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  `,
+    @if (!loading && filteredRuns.length > 0) {
+      <div class="runs-table-wrap">
+        <table class="runs-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Sync</th>
+              <th>Started</th>
+              <th>Completed</th>
+              <th>Changed</th>
+              <th>Removed</th>
+              <th>Links Fixed</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of filteredRuns; track r) {
+              <tr class="run-tr"
+                [routerLink]="['/syncs', r.sync_id]">
+                <td><app-status-badge [status]="r.status"></app-status-badge></td>
+                <td class="sync-name-cell">
+                  <a [routerLink]="['/syncs', r.sync_id]" (click)="$event.stopPropagation()" class="sync-link">
+                    {{ r.syncName }}
+                  </a>
+                </td>
+                <td class="time-cell">{{ r.started_at | localDate:'MMM d, h:mm a' }}</td>
+                <td class="time-cell">{{ r.completed_at ? (r.completed_at | localDate:'h:mm a') : '—' }}</td>
+                <td class="num-cell">{{ r.changed_count ?? '—' }}</td>
+                <td class="num-cell">{{ r.removed_count ?? '—' }}</td>
+                <td class="num-cell">{{ r.links_fixed ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    `,
   styles: [`
     .page-banner {
       background: linear-gradient(135deg, #011627 0%, #0d2137 100%);
