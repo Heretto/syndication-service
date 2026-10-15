@@ -215,6 +215,14 @@ class TestConcurrentRunGuard:
 
         assert "sync-001" not in executor._running
 
+    async def test_releases_lock_when_run_record_cannot_be_created(self, executor, state_store):
+        state_store.create_run.side_effect = RuntimeError("db unavailable")
+
+        with pytest.raises(RuntimeError, match="db unavailable"):
+            await executor.execute("sync-001")
+
+        assert "sync-001" not in executor._running
+
 
 # ── Inactive sync ─────────────────────────────────────────────────────────────
 
