@@ -1,4 +1,4 @@
-import { Component, forwardRef, OnInit, OnDestroy } from '@angular/core';
+import { Component, forwardRef, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, NG_VALUE_ACCESSOR, ControlValueAccessor } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -130,6 +130,7 @@ interface DayOption {
       }
     </div>
     `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .cron-builder { display: flex; flex-direction: column; gap: 12px; }
     .mode-toggle { display: flex; justify-content: flex-start; }

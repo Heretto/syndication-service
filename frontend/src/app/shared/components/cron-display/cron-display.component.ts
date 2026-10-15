@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges } from '@angular/core';
+import { Component, Input, OnChanges, ChangeDetectionStrategy } from '@angular/core';
 
 import cronstrue from 'cronstrue';
 
@@ -6,6 +6,7 @@ import cronstrue from 'cronstrue';
   selector: 'app-cron-display',
   imports: [],
   template: `<span class="cron-text" [title]="expression">{{ humanReadable }}</span>`,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .cron-text {
       font-size: 12.5px;

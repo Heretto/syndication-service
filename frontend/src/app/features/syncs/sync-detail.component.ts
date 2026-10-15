@@ -1,4 +1,4 @@
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -265,6 +265,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
       </div>
     }
     `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .loading-center { display: flex; justify-content: center; padding: 80px; }
 

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 import { MatIconModule } from '@angular/material/icon';
 import { HopAdminComponent } from '@heretto/hop-ui';
@@ -17,6 +17,7 @@ import { HopAdminComponent } from '@heretto/hop-ui';
     </div>
     <hop-admin></hop-admin>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .future-targets-banner {
       display: flex;

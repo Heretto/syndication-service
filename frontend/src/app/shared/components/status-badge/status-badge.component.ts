@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 
 import { MatIconModule } from '@angular/material/icon';
 
@@ -11,6 +11,7 @@ import { MatIconModule } from '@angular/material/icon';
       {{ label }}
     </span>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .badge {
       display: inline-flex;

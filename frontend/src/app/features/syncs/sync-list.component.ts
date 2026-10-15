@@ -1,4 +1,4 @@
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { FormsModule } from '@angular/forms';
@@ -212,6 +212,7 @@ import { LocalDatePipe } from '../../shared/pipes/local-date.pipe';
       </div>
     }
     `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .page-banner {
       background: linear-gradient(135deg, #011627 0%, #0d2137 100%);
