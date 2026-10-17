@@ -1,4 +1,13 @@
 import { Routes } from '@angular/router';
+import {
+  HopLoginComponent,
+  HopForgotPasswordComponent,
+  HopResetPasswordComponent,
+  HopSSOCallbackComponent,
+  HopAcceptInvitationComponent,
+  HopAccountComponent,
+  HopAdminComponent,
+} from '@heretto/hop-ui';
 import { authGuard } from './core/guards/auth.guard';
 import { adminGuard } from './core/guards/admin.guard';
 import { superadminGuard } from './core/guards/superadmin.guard';
@@ -8,23 +17,23 @@ export const routes: Routes = [
   // ── Unauthenticated auth pages ────────────────────────────────────────────
   {
     path: 'login',
-    loadComponent: () => import('@heretto/hop-ui').then(m => m.HopLoginComponent),
+    component: HopLoginComponent,
   },
   {
     path: 'forgot-password',
-    loadComponent: () => import('@heretto/hop-ui').then(m => m.HopForgotPasswordComponent),
+    component: HopForgotPasswordComponent,
   },
   {
     path: 'reset-password',
-    loadComponent: () => import('@heretto/hop-ui').then(m => m.HopResetPasswordComponent),
+    component: HopResetPasswordComponent,
   },
   {
     path: 'auth/sso/complete',
-    loadComponent: () => import('@heretto/hop-ui').then(m => m.HopSSOCallbackComponent),
+    component: HopSSOCallbackComponent,
   },
   {
     path: 'invite/:token',
-    loadComponent: () => import('@heretto/hop-ui').then(m => m.HopAcceptInvitationComponent),
+    component: HopAcceptInvitationComponent,
   },
 
   // ── Authenticated app shell ───────────────────────────────────────────────
@@ -66,12 +75,12 @@ export const routes: Routes = [
       },
       {
         path: 'account',
-        loadComponent: () => import('@heretto/hop-ui').then(m => m.HopAccountComponent),
+        component: HopAccountComponent,
       },
       {
         path: 'admin',
         canActivate: [adminGuard],
-        loadComponent: () => import('@heretto/hop-ui').then(m => m.HopAdminComponent),
+        component: HopAdminComponent,
       },
       {
         path: 'superadmin',
