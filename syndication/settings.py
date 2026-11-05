@@ -25,6 +25,7 @@ class AppSettings(HopCoreSettings):
     sync_max_consecutive_failures: int = 5
     sync_retention_days: int = 90
     sync_timeout_seconds: int = 3600
+    sync_concurrency: int = 10  # max concurrent articles per run
 
     # ── Retry ─────────────────────────────────────────────────────────────────
     retry_max_attempts: int = 3

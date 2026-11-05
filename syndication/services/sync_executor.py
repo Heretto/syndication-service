@@ -93,6 +93,7 @@ class SyncExecutorService:
                 connector=connector,
                 mapping=mapping,
                 auto_publish=getattr(cfg, "publish_mode", "auto") == "auto",
+                concurrency=getattr(self._settings, "sync_concurrency", 1),
             )
 
             peek = None

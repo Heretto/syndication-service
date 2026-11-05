@@ -27,6 +27,7 @@ def _make_mock_settings() -> MagicMock:
     s.sync_max_consecutive_failures = 5
     s.sync_retention_days = 90
     s.sync_timeout_seconds = 3600
+    s.sync_concurrency = 1
     # Retry
     s.retry_max_attempts = 3
     s.retry_initial_delay_ms = 1000
