@@ -6,6 +6,7 @@ etc.) between runs.  This separation makes the pipeline easy to unit-test.
 """
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import logging
 import re
@@ -86,6 +87,8 @@ class SyncPipeline:
         mapping:      Connector-specific field-mapping configuration dict.
         auto_publish: When ``True`` (default), call ``publish_article`` after each
                       successful upsert.  Set to ``False`` to leave articles as drafts.
+        concurrency:  Maximum number of articles processed concurrently per run.
+                      Defaults to 1 (sequential).  Increase for large deployments.
     """
 
     def __init__(
@@ -94,11 +97,13 @@ class SyncPipeline:
         connector: ITargetConnector,
         mapping: dict,
         auto_publish: bool = True,
+        concurrency: int = 1,
     ) -> None:
         self._adapter = adapter
         self._connector = connector
         self._mapping = mapping
         self._auto_publish = auto_publish
+        self._concurrency = max(1, concurrency)
 
     async def run(
         self,
@@ -136,105 +141,126 @@ class SyncPipeline:
         else:
             changeset = await self._adapter.get_changed(since=since)
 
-        # ── Stage 2: Fetch pages ──────────────────────────────────────────────
         structure_entries = getattr(changeset, 'entries', {})
-        pages: list[IRPage] = []
-        for uuid, href in changeset.changed:
-            page = await self._adapter.get_page(href)
-            entry = structure_entries.get(uuid)
-            if entry is not None:
-                page = dataclasses.replace(
-                    page,
-                    section_path=entry.section_path,
-                    sort_order=entry.sort_order,
-                    sibling_uuids=entry.sibling_uuids,
-                )
-            pages.append(page)
-
-        # ── Stage 3: Map (sanitise HTML) ──────────────────────────────────────
-        sanitised_pages: list[IRPage] = []
-        for page in pages:
-            clean_html = await self._connector.sanitize_html(page.html_body)
-            sanitised_pages.append(dataclasses.replace(page, html_body=clean_html))
-
-        # ── Stage 3.5: Upload binary assets and rewrite <img src> ────────────
-        ready_pages: list[IRPage] = []
-        for page in sanitised_pages:
-            img_srcs = _extract_img_srcs(page.html_body)
-            url_map: dict[str, str] = {}
-            for src in img_srcs:
-                obj_uuid = _object_uuid_from_url(src)
-                try:
-                    content, mime_type = await self._adapter.fetch_binary(src)
-                    ext = _MIME_TO_EXT.get(mime_type, ".bin")
-                    sf_url = await self._connector.upload_binary(
-                        obj_uuid, content, mime_type, f"{obj_uuid}{ext}"
-                    )
-                    url_map[src] = sf_url
-                    log.info("Uploaded binary %s → %s", obj_uuid, sf_url)
-                except Exception as exc:
-                    log.warning("Failed to upload binary %s: %s", src[:80], exc)
-            if url_map:
-                page = dataclasses.replace(
-                    page, html_body=_rewrite_img_srcs(page.html_body, url_map)
-                )
-            ready_pages.append(page)
-
-        # ── Stage 4: Load (upsert + publish) ─────────────────────────────────
-        upsert_results: list[UpsertResult] = []
-        link_map: dict[str, str] = {}   # source_uuid → target_article_id (executor persistence)
-        href_map: dict[str, str] = {}   # source_href → target_article_id (link rewriting)
-        run_warnings: list[str] = []
-
         category_map: dict = self._mapping.get("category_map", {})
         field_map = {k: v for k, v in self._mapping.items() if k != "category_map"}
         html_body_field: str = field_map.get("html_body", "")
 
-        total_pages = len(ready_pages)
-        processed = 0
-        storage_limit_skipped: list[str] = []  # titles of articles skipped due to org limit
+        total_pages = len(changeset.changed)
+        counter = [0]  # mutable int — asyncio is single-threaded; plain list cell is safe
+
         if progress_callback and total_pages:
             progress_callback(0, total_pages)
 
-        for page in ready_pages:
-            try:
-                result = await self._connector.upsert_article(page, field_map)
-            except Exception as exc:
-                exc_str = str(exc)
-                if "STORAGE_LIMIT_EXCEEDED" in exc_str:
-                    log.warning("Article %r (%r) skipped: Salesforce article limit exceeded.", page.uuid, page.title)
-                    storage_limit_skipped.append(page.title or page.uuid)
-                    processed += 1
-                    if progress_callback:
-                        progress_callback(processed, total_pages)
-                    continue
-                raise
-            run_warnings.extend(result.warnings)
-            # Always sync categories — they are independent of the draft/publish
-            # cycle and can be applied to Published articles directly.
-            try:
-                await self._connector.sync_data_categories(
-                    result.target_article_id, page.taxonomy, category_map
-                )
-            except Exception as exc:
-                msg = f"Category sync failed for {result.target_article_id} ({page.title!r}): {exc}"
-                log.warning(msg)
-                run_warnings.append(msg)
-            if not result.update_skipped and self._auto_publish:
+        # ── Stages 2–4: Fetch → Sanitise → Upload → Upsert (concurrent) ──────
+        sem = asyncio.Semaphore(self._concurrency)
+
+        async def _process_one(uuid: str, href: str) -> dict | None:
+            async with sem:
+                # Stage 2: Fetch page
+                page = await self._adapter.get_page(href)
+                entry = structure_entries.get(uuid)
+                if entry is not None:
+                    page = dataclasses.replace(
+                        page,
+                        section_path=entry.section_path,
+                        sort_order=entry.sort_order,
+                        sibling_uuids=entry.sibling_uuids,
+                    )
+
+                # Stage 3: Sanitise HTML
+                clean_html = await self._connector.sanitize_html(page.html_body)
+                page = dataclasses.replace(page, html_body=clean_html)
+
+                # Stage 3.5: Upload binary assets and rewrite <img src>
+                img_srcs = _extract_img_srcs(page.html_body)
+                url_map: dict[str, str] = {}
+                for src in img_srcs:
+                    obj_uuid = _object_uuid_from_url(src)
+                    try:
+                        content, mime_type = await self._adapter.fetch_binary(src)
+                        ext = _MIME_TO_EXT.get(mime_type, ".bin")
+                        sf_url = await self._connector.upload_binary(
+                            obj_uuid, content, mime_type, f"{obj_uuid}{ext}"
+                        )
+                        url_map[src] = sf_url
+                        log.info("Uploaded binary %s → %s", obj_uuid, sf_url)
+                    except Exception as exc:
+                        log.warning("Failed to upload binary %s: %s", src[:80], exc)
+                if url_map:
+                    page = dataclasses.replace(
+                        page, html_body=_rewrite_img_srcs(page.html_body, url_map)
+                    )
+
+                # Stage 4: Upsert + category sync + publish
+                article_warnings: list[str] = []
                 try:
-                    await self._connector.publish_article(result.target_article_id, was_online=result.was_online)
+                    result = await self._connector.upsert_article(page, field_map)
                 except Exception as exc:
-                    msg = f"Publish failed for {result.target_article_id}: {exc}"
+                    if "STORAGE_LIMIT_EXCEEDED" in str(exc):
+                        log.warning(
+                            "Article %r (%r) skipped: Salesforce article limit exceeded.",
+                            page.uuid, page.title,
+                        )
+                        counter[0] += 1
+                        if progress_callback:
+                            progress_callback(counter[0], total_pages)
+                        return {"skipped": True, "title": page.title or page.uuid}
+                    raise
+
+                article_warnings.extend(result.warnings)
+
+                try:
+                    await self._connector.sync_data_categories(
+                        result.target_article_id, page.taxonomy, category_map
+                    )
+                except Exception as exc:
+                    msg = f"Category sync failed for {result.target_article_id} ({page.title!r}): {exc}"
                     log.warning(msg)
-                    run_warnings.append(msg)
+                    article_warnings.append(msg)
+
+                if not result.update_skipped and self._auto_publish:
+                    try:
+                        await self._connector.publish_article(
+                            result.target_article_id, was_online=result.was_online
+                        )
+                    except Exception as exc:
+                        msg = f"Publish failed for {result.target_article_id}: {exc}"
+                        log.warning(msg)
+                        article_warnings.append(msg)
+
+                counter[0] += 1
+                if progress_callback:
+                    progress_callback(counter[0], total_pages)
+
+                return {"result": result, "page": page, "warnings": article_warnings}
+
+        outcomes = await asyncio.gather(
+            *[_process_one(uuid, href) for uuid, href in changeset.changed]
+        )
+
+        # Collect results from concurrent tasks
+        upsert_results: list[UpsertResult] = []
+        link_map: dict[str, str] = {}    # source_uuid → target_article_id
+        href_map: dict[str, str] = {}    # source_href → target_article_id
+        run_warnings: list[str] = []
+        storage_limit_skipped: list[str] = []
+        processed_pages: dict[str, IRPage] = {}  # uuid → page (for sibling pass)
+
+        for outcome in outcomes:
+            if outcome is None:
+                continue
+            if outcome.get("skipped"):
+                storage_limit_skipped.append(outcome["title"])
+                continue
+            result = outcome["result"]
+            page = outcome["page"]
+            run_warnings.extend(outcome["warnings"])
             upsert_results.append(result)
             link_map[page.uuid] = result.target_article_id
             href_map[page.href] = result.target_article_id
-            processed += 1
-            if progress_callback:
-                progress_callback(processed, total_pages)
+            processed_pages[page.uuid] = page
 
-        # Emit one consolidated warning for all storage-limit skips.
         if storage_limit_skipped:
             n = len(storage_limit_skipped)
             titles = ", ".join(storage_limit_skipped)
@@ -247,7 +273,7 @@ class SyncPipeline:
 
         # ── Stage 4.5: Deferred sibling relationship pass (force_full only) ──
         if structure_entries:
-            for page in ready_pages:
+            for page in processed_pages.values():
                 if not page.sibling_uuids:
                     continue
                 resolved = [link_map[u] for u in page.sibling_uuids if u in link_map]
